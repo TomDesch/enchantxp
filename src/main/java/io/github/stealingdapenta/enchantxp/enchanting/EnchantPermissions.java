@@ -33,7 +33,7 @@ public final class EnchantPermissions {
         String[] slugs = {"protection", "fire_protection", "feather_falling", "blast_protection", "projectile_protection", "respiration", "aqua_affinity", "thorns", "depth_strider", "frost_walker", "binding_curse", "sharpness", "smite",
                           "bane_of_arthropods", "knockback", "fire_aspect", "looting", "sweeping_edge", "efficiency", "silk_touch", "unbreaking", "fortune", "power", "punch", "flame", "infinity", "luck_of_the_sea", "lure", "mending",
                           "vanishing_curse"};
-        Map<String, String> values = new LinkedHashMap<String, String>();
+        Map<String, String> values = new LinkedHashMap<>();
         for (int i = 0; i < names.length; i++) {
             values.put(names[i], slugs[i]);
         }
@@ -170,7 +170,7 @@ public final class EnchantPermissions {
         }
 
         public void shutdown() {
-            remove(new ArrayList<Permission>(owned.values()));
+            remove(new ArrayList<>(owned.values()));
         }
 
         public void validate(EnchantPermissions settings) {
@@ -191,7 +191,7 @@ public final class EnchantPermissions {
         }
 
         private void remove(List<Permission> permissions) {
-            Set<Permissible> subscribers = new HashSet<Permissible>();
+            Set<Permissible> subscribers = new HashSet<>();
             for (Permission permission : permissions) {
                 subscribers.addAll(permission.getPermissibles());
                 subscribers.addAll(manager.getDefaultPermSubscriptions(true));

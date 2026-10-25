@@ -141,6 +141,8 @@ public final class Prices {
         if (explicit != null && explicit.containsKey(level)) {
             return explicit.get(level);
         }
-        return Math.multiplyExact(Math.multiplyExact((long) bases.getOrDefault(name, base), level), level);
+        long startingPrice = bases.getOrDefault(name, base);
+        long levelFactor = level;
+        return Math.multiplyExact(Math.multiplyExact(startingPrice, levelFactor), levelFactor);
     }
 }

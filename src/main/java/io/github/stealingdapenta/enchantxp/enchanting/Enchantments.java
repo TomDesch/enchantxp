@@ -41,11 +41,8 @@ public final class Enchantments {
             return false;
         }
         // Books store enchantments separately; ordinary enchants on books are not a supported input.
-        if (book(item) && !item.getEnchantments()
-                               .isEmpty()) {
-            return false;
-        }
-        return true;
+        return !book(item) || item.getEnchantments()
+                                  .isEmpty();
     }
 
     private static boolean applicable(ItemStack item) {
