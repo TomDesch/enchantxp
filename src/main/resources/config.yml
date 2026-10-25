@@ -1,0 +1,276 @@
+# Set the starting XP price here (1..1000000). Higher levels cost more.
+# A level's total value is its starting price x level squared.
+# Upgrades cost the difference between the old and new level at today's prices.
+# max-cost limits the upgrade charge, not the total value.
+# Edit in-game with /enchantxp config, or edit this file and /enchantxp reload.
+base-xp: 10000
+
+max-cost: 1000000
+
+# Without shelves, add the surcharge below. Each shelf reduces it toward zero.
+# Percentages: whole numbers, 0..1000000. Shelf limit: 1..15.
+# Prices round up after the surcharge; max-cost still applies.
+bookshelf-pricing:
+  enabled: true
+  zero-shelf-penalty-percent: 150
+  per-bookshelf-reduction-percent: 10
+  max-bookshelves: 15
+
+# Turn this on to check a permission for each level a player wants to buy.
+permissions:
+  enabled: false
+
+# Sounds play only for the player using the menu. '' turns one sound off.
+# Volume: 0..4. Pitch: 0..2.
+sounds:
+  enabled: true
+  click:
+    sound: UI_BUTTON_CLICK
+    volume: 0.5
+    pitch: 1.0
+  success:
+    sound: BLOCK_ENCHANTMENT_TABLE_USE
+    volume: 1.0
+    pitch: 1.0
+  insufficient:
+    sound: ENTITY_VILLAGER_NO
+    volume: 1.0
+    pitch: 1.0
+
+# Set each enchantment's name, starting price and highest purchasable level here.
+# Missing prices use base-xp above; missing caps use the vanilla limit.
+# enabled: false or max-level: 0 blocks purchases. Other caps can be 1..255.
+# Optional levels entries set total XP values, not upgrade charges.
+# All level totals must keep rising, including levels without an override.
+enchantments:
+  MENDING:
+    name: 'Mending'
+    base-xp: 250000
+  LOOT_BONUS_BLOCKS:
+    name: 'Fortune'
+    base-xp: 25000
+  SILK_TOUCH:
+    name: 'Silk Touch'
+    base-xp: 150000
+  ARROW_INFINITE:
+    name: 'Infinity'
+    base-xp: 200000
+  DAMAGE_ALL:
+    name: 'Sharpness'
+    # enabled: true
+    # max-level: 5
+    # base-xp: 2000
+    # levels:
+    #   '3': 12000
+  DAMAGE_UNDEAD:
+    name: 'Smite'
+  DAMAGE_ARTHROPODS:
+    name: 'Bane of Arthropods'
+  PROTECTION_ENVIRONMENTAL:
+    name: 'Protection'
+  PROTECTION_FIRE:
+    name: 'Fire Protection'
+  PROTECTION_FALL:
+    name: 'Feather Falling'
+  PROTECTION_EXPLOSIONS:
+    name: 'Blast Protection'
+  PROTECTION_PROJECTILE:
+    name: 'Projectile Protection'
+  OXYGEN:
+    name: 'Respiration'
+  WATER_WORKER:
+    name: 'Aqua Affinity'
+    base-xp: 75000
+  THORNS:
+    name: 'Thorns'
+  DEPTH_STRIDER:
+    name: 'Depth Strider'
+  FROST_WALKER:
+    name: 'Frost Walker'
+  BINDING_CURSE:
+    name: 'Curse of Binding'
+  KNOCKBACK:
+    name: 'Knockback'
+  FIRE_ASPECT:
+    name: 'Fire Aspect'
+  LOOT_BONUS_MOBS:
+    name: 'Looting'
+  SWEEPING_EDGE:
+    name: 'Sweeping Edge'
+  DIG_SPEED:
+    name: 'Efficiency'
+  DURABILITY:
+    name: 'Unbreaking'
+  ARROW_DAMAGE:
+    name: 'Power'
+  ARROW_KNOCKBACK:
+    name: 'Punch'
+  ARROW_FIRE:
+    name: 'Flame'
+    base-xp: 150000
+  LUCK:
+    name: 'Luck of the Sea'
+  LURE:
+    name: 'Lure'
+  VANISHING_CURSE:
+    name: 'Curse of Vanishing'
+
+# Item caps take priority over enchantment caps, then vanilla limits.
+# Use the 1.12.2 item and enchantment names. A cap of 0 blocks purchases.
+# Existing enchantments are left alone.
+# BOOK caps also cover ENCHANTED_BOOK, unless it has its own cap for that enchantment.
+items: {}
+# Example (replace items: {} above, do not duplicate the key):
+# items:
+#   DIAMOND_SWORD:
+#     max-levels:
+#       DAMAGE_ALL: 3
+#       DURABILITY: 0
+
+# Use & color codes. 3..6 rows show 7/14/21/28 choices per page.
+# Use Minecraft 1.12.2 item names and data values, not modern item names.
+# Enchantment choices always appear as enchanted books.
+# Available UI tokens: {player}, {item}, {enchantment}, {level}, {current}, {max},
+# {cost}, {balance}, {page}, {pages}. Titles are cropped to 32 code units.
+# Titles/selection use player, balance, page, pages and item (except item title).
+# Level/confirm titles also accept enchantment/current/max; confirm adds level/cost.
+# Option/button tokens with no applicable selection render as blank.
+# {sort} is accepted only in the sort button name/lore.
+# Lore is a list of lines; [] clears it. Use a blank list entry for a blank line.
+# Leaving lore out of a configured icon makes it empty. Omit the whole icon to use defaults.
+# Leaving stage lore out of ui makes it empty. Omit ui entirely to use defaults.
+ui:
+  rows: 6
+  unlimited-balance: 'Unlimited'
+  titles:
+    item: '&5EnchantXP &8| &fChoose item'
+    enchantment: '&5EnchantXP &8| &fEnchantments'
+    level: '&5EnchantXP &8| &fLevels {page}/{pages}'
+    confirm: '&5EnchantXP &8| &fConfirm'
+  option-name: '&d{enchantment} &f{level}'
+  type-name: '&d{enchantment}'
+  type-lore:
+    - '&7Left click to choose enchantment'
+  review-name: '&d{enchantment} &f{level}'
+  review-lore:
+    - '&7Price: &e{cost} raw XP'
+    - '&7Level: &a{current}&7/{max}'
+    - ''
+    - '&7Review your choice.'
+    - '&aClick the green confirm below.'
+  option-lore:
+    - '&8--------------------'
+    - '&7Price: &e{cost} raw XP'
+    - '&7Level: &a{current}&7/{max}'
+    - ''
+    - '&aLeft click to choose'
+  selection-name: '&dSelected &8| &f{item}'
+  selection-lore:
+    - ''
+    - '&5Selected item &8- &7display only'
+  icons:
+    fill:
+      material: STAINED_GLASS_PANE
+      data: 15
+      name: ' '
+      lore: []
+    border:
+      material: STAINED_GLASS_PANE
+      data: 2
+      name: ' '
+      lore: []
+    accent:
+      material: STAINED_GLASS_PANE
+      data: 2
+      name: '&5EnchantXP'
+      lore: []
+    back:
+      material: ARROW
+      data: 0
+      name: '&dBack'
+      lore: ['&7Return without paying.']
+    previous:
+      material: ARROW
+      data: 0
+      name: '&dPrevious page'
+      lore: ['&7Page {page} of {pages}']
+    next:
+      material: ARROW
+      data: 0
+      name: '&dNext page'
+      lore: ['&7Page {page} of {pages}']
+    sort:
+      material: HOPPER
+      data: 0
+      name: '&dCycle sort: &f{sort}'
+      lore: ['&7Default, ascending, descending.']
+    cancel:
+      material: BARRIER
+      data: 0
+      name: '&cCancel'
+      lore: ['&7Close without paying.']
+    confirm:
+      material: EMERALD
+      data: 0
+      name: '&aConfirm &f{enchantment} {level}'
+      lore:
+        - '&7Enchantment: &f{enchantment} {level}'
+        - '&7Pay &e{cost} raw XP'
+        - ''
+        - '&aLeft click to pay and enchant'
+    insufficient:
+      material: BARRIER
+      data: 0
+      name: "&cCan't Confirm"
+      lore:
+        - '&7Enchantment: &f{enchantment} {level}'
+        - '&7Pay &e{cost} raw XP'
+        - '&cMissing &e{missing} raw XP'
+    instructions:
+      material: ANVIL
+      data: 0
+      name: '&dChoose your item'
+      lore:
+        - '&7Left click one compatible item below.'
+    info:
+      material: EXP_BOTTLE
+      data: 0
+      name: '&dBalance: &f{balance} XP'
+      lore:
+        - '&7Page &f{page} &7of &f{pages}'
+
+# The prefix is added once to each message. Old {prefix} placeholders still work.
+# Set a message to '' to hide it. This does not turn off sounds.
+# {player} is allowed in all messages. Extra tokens:
+# insufficient: {cost}, {balance}; success: {cost}, {balance}, {enchantment}, {level}.
+# reload-failure also accepts {path}. Editor feedback accepts {detail}.
+# Failed validation keeps your current settings. Prefix takes no placeholders.
+messages:
+  prefix: '&5EnchantXP &8> &r'
+  eligibility: '&cEnchantXP requires survival or creative mode and enchantxp.use.'
+  context: '&cSomething changed. Stay near the table and reopen it to try again.'
+  unsupported: '&cChoose one compatible item or a stack of plain books. Written books cannot be enchanted.'
+  no-space: '&cMake room for an enchanted book in your inventory, then try again. Nothing was charged.'
+  no-upgrades: '&eThis item has no more upgrades available.'
+  unavailable: '&eThe remaining upgrades cost more than the server allows.'
+  insufficient: '&cNot enough raw XP: need {cost}, you have {balance}.'
+  invalid-balance: '&cYour XP balance could not be read. Please contact a server operator.'
+  stale: '&cSomething changed before the purchase. Reopen the table to try again.'
+  success: '&aConfirmed {enchantment} {level} for {cost} XP.'
+  quote-changed: '&eThe price, mode or access changed. Review the refreshed selection before confirming.'
+  failure: '&cEnchanting failed. Please contact a server operator.'
+  reload-denied: '&cYou need enchantxp.reload.'
+  reload-usage: '&eUsage: /enchantxp reload or /enchantxp config'
+  reload-busy: '&eA settings operation is already in progress. Please try again shortly.'
+  reload-stopped: '&cEnchantXP is stopped.'
+  reload-success: '&aConfiguration reloaded. Reopen the enchanting table.'
+  reload-failure: '&cCould not reload {path}. Previous settings kept; check the server log.'
+  config-denied: '&cYou need enchantxp.config.'
+  config-player-only: '&eOpen the settings menu in-game with /enchantxp config.'
+  config-prompt: '&d{detail} &7Reply in chat. Type cancel to go back, or <blank> for empty text. Start with \ to use those words literally.'
+  config-error: '&c{detail}'
+  config-saving: '&eSaving your settings. Please wait.'
+  config-saved: '&aSettings saved and applied. A backup of the original file was kept.'
+  config-saved-not-applied: '&cSaved, but not applied. Check the server log, then run /enchantxp reload.'
+  config-discarded: '&eDraft closed. Unsaved changes were discarded.'
+  config-expired: '&eYour settings draft expired. Open /enchantxp config to start again.'

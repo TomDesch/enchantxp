@@ -1,0 +1,23 @@
+name: EnchantXP
+
+version: 0.2.0-alpha.3
+
+main: io.github.stealingdapenta.enchantxp.EnchantXpPlugin
+
+description: Choose vanilla enchantments at a table for raw experience points.
+
+commands:
+  enchantxp:
+    description: Edit settings in-game or reload config.yml.
+    usage: /enchantxp <config|reload>
+
+permissions:
+  enchantxp.use:
+    description: Use enchanting tables in Survival or Creative mode.
+    default: true
+  enchantxp.reload:
+    description: Reload EnchantXP configuration without restarting the server.
+    default: op
+  enchantxp.config:
+    description: Edit and save EnchantXP settings in-game.
+    default: op
