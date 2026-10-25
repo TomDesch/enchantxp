@@ -315,7 +315,7 @@ public final class TableMenus implements Listener {
             show(player, session, build(player, session, MenuStage.CONFIRM, holder.enchantment, holder.level, 0));
             return;
         }
-        if (!fresh.same(holder.quote)) {
+        if (fresh.differsFrom(holder.quote)) {
             message(player, "quote-changed");
             show(player, session, build(player, session, MenuStage.CONFIRM, holder.enchantment, holder.level, 0));
             return;
