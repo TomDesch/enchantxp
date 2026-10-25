@@ -214,8 +214,10 @@ public final class ServerFixture {
     public int confirmSlot() { return menu().layout.confirm; }
 
     public InventoryView orphanView(Player owner) {
-        MenuHolder holder = new MenuHolder(menus, new MenuLayout(6),
-                new EnchantSession(owner.getUniqueId(), 0, block.getLocation()), MenuStage.ITEM, null, 0, 0, 1);
+        MenuLayout layout = new MenuLayout(6);
+        MenuHolder holder = new MenuHolder(menus, layout,
+                new EnchantSession(owner.getUniqueId(), 0, block.getLocation()),
+                new MenuHolder.Route(MenuStage.ITEM, null, 0, 0), new MenuHolder.Pagination(0, 0, layout.capacity()), null);
         InventoryView result = mock(InventoryView.class);
         Inventory top = inventory(holder, 54);
         when(result.getTopInventory()).thenReturn(top);

@@ -25,8 +25,8 @@ class MenuRendererTest {
         List<Enchantment> choices = Collections.unmodifiableList(Arrays.asList(ServerFixture.SHARPNESS, ServerFixture.SMITE));
         MenuRenderer renderer = new MenuRenderer(settings.prices(), settings.policy(), settings.text(),
                 new MenuLayout(3), settings.shelves());
-        MenuHolder result = renderer.build(fixture.menus, fixture.player, session, MenuStage.ENCHANTMENT,
-                null, 0, 0, 0, choices, Collections.emptyList());
+        MenuHolder result = renderer.build(fixture.menus, fixture.player, session,
+                new MenuHolder.Route(MenuStage.ENCHANTMENT, null, 0, 0), 0, choices, Collections.emptyList());
         assertSame(ServerFixture.SMITE, result.choices.get(10));
         assertEquals(Arrays.asList(ServerFixture.SHARPNESS, ServerFixture.SMITE), choices);
         assertEquals(before, fixture.items.get(0));

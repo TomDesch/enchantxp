@@ -2,101 +2,120 @@ package io.github.stealingdapenta.enchantxp.presentation;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.command.CommandSender;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
-/** Validated templates and legacy icon styles, rendered once without interpreting inserted values. */
+/**
+ * Validated templates and legacy icon styles, rendered once without interpreting inserted values.
+ */
 public final class MenuText {
+
+    private static final String UI_PATH = "ui.";
+    private static final String MESSAGE_PATH = "messages.";
+    private static final String ENCHANTMENT_PATH = "enchantments.";
+    private static final String TITLE_PATH = "ui.titles.";
+    private static final String PREFIX_PATH = "messages.prefix";
+    private static final int MAX_TITLE_LENGTH = 32;
     private static final Pattern TOKEN = Pattern.compile("\\{([^{}]+)\\}");
-    private static final Set<String> UI_TOKENS = new HashSet<String>(Arrays.asList(
-            "player", "item", "enchantment", "level", "current", "max", "cost", "balance", "page", "pages", "missing"));
+    private static final Set<String> UI_TOKENS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList("player", "item", "enchantment", "level", "current", "max", "cost", "balance", "page", "pages", "missing")));
     private final Map<String, String> strings;
     private final Map<String, List<String>> lists;
     private final Map<String, Material> materials;
     private final Map<String, Short> data;
 
-    private MenuText(Map<String, String> strings, Map<String, List<String>> lists,
-            Map<String, Material> materials, Map<String, Short> data) {
-        this.strings = Collections.unmodifiableMap(new HashMap<String, String>(strings));
-        this.lists = Collections.unmodifiableMap(new HashMap<String, List<String>>(lists));
-        this.materials = Collections.unmodifiableMap(new HashMap<String, Material>(materials));
-        this.data = Collections.unmodifiableMap(new HashMap<String, Short>(data));
+    private MenuText(Map<String, String> strings, Map<String, List<String>> lists, Map<String, Material> materials, Map<String, Short> data) {
+        this.strings = Collections.unmodifiableMap(new HashMap<>(strings));
+        this.lists = Collections.unmodifiableMap(new HashMap<>(lists));
+        this.materials = Collections.unmodifiableMap(new HashMap<>(materials));
+        this.data = Collections.unmodifiableMap(new HashMap<>(data));
     }
 
     public static MenuText read(ConfigurationSection config) {
         YamlConfiguration defaults = ConfigValues.defaults();
         validateTree(config, defaults, "ui");
         validateTree(config, defaults, "messages");
-        Map<String, String> strings = new HashMap<String, String>();
-        Map<String, List<String>> lists = new HashMap<String, List<String>>();
-        Map<String, Material> materials = new HashMap<String, Material>();
-        Map<String, Short> data = new HashMap<String, Short>();
+        Map<String, String> strings = new HashMap<>();
+        Map<String, List<String>> lists = new HashMap<>();
+        Map<String, Material> materials = new HashMap<>();
+        Map<String, Short> data = new HashMap<>();
         for (String path : defaults.getKeys(true)) {
-            if (!path.startsWith("ui.") && !path.startsWith("messages.")) {
-                continue;
-            }
-            if (defaults.isConfigurationSection(path)) {
-                continue;
-            }
-            if (path.equals("ui.rows")) {
-                continue;
-            }
-            Object value = ConfigValues.value(config, defaults, path);
-            if (path.equals("messages.success") &&
-                    "&5EnchantedXP &8> &aConfirmed {enchantment} {level} for {cost} XP.".equals(value)) {
-                value = "&aConfirmed {enchantment} {level} for {cost} XP.";
-            }
-            if (path.equals("messages.eligibility") &&
-                    "{prefix}&cEnchantXP requires survival mode and enchantxp.use.".equals(value)) {
-                value = "&cEnchantXP requires survival or creative mode and enchantxp.use.";
-            }
-            if (path.endsWith(".material")) {
-                materials.put(path, ConfigValues.material(value, path));
-            } else if (path.endsWith(".data")) {
-                data.put(path, (short) ConfigValues.integer(value, path, 0, Short.MAX_VALUE));
-            } else if (defaults.get(path) instanceof List) {
-                String parent = path.substring(0, path.lastIndexOf('.'));
-                if (!config.contains(path, true) && ConfigValues.section(config, parent) != null) {
-                    value = Collections.emptyList();
-                }
-                if (!(value instanceof List)) {
-                    throw new IllegalArgumentException(path + " must be a list of strings");
-                }
-                List<String> copy = new ArrayList<String>();
-                for (Object line : (List<?>) value) {
-                    copy.add(template(line, path));
-                }
-                lists.put(path, Collections.unmodifiableList(copy));
-            } else {
-                strings.put(path, template(value, path));
+            if (isTemplatePath(defaults, path)) {
+                readTemplate(config, defaults, path, strings, lists, materials, data);
             }
         }
+        readNames(config, defaults, strings);
+        return new MenuText(strings, lists, materials, data);
+    }
+
+    private static boolean isTemplatePath(ConfigurationSection defaults, String path) {
+        return (path.startsWith(UI_PATH) || path.startsWith(MESSAGE_PATH)) && !defaults.isConfigurationSection(path) && !path.equals("ui.rows");
+    }
+
+    private static void readTemplate(ConfigurationSection config, ConfigurationSection defaults, String path, Map<String, String> strings, Map<String, List<String>> lists, Map<String, Material> materials, Map<String, Short> data) {
+        Object value = legacyTemplate(path, ConfigValues.value(config, defaults, path));
+        if (path.endsWith(".material")) {
+            materials.put(path, ConfigValues.material(value, path));
+        } else if (path.endsWith(".data")) {
+            data.put(path, (short) ConfigValues.integer(value, path, 0, Short.MAX_VALUE));
+        } else if (defaults.get(path) instanceof List) {
+            lists.put(path, readLore(config, path, value));
+        } else {
+            strings.put(path, template(value, path));
+        }
+    }
+
+    private static Object legacyTemplate(String path, Object value) {
+        if (path.equals("messages.success") && "&5EnchantedXP &8> &aConfirmed {enchantment} {level} for {cost} XP.".equals(value)) {
+            return "&aConfirmed {enchantment} {level} for {cost} XP.";
+        }
+        if (path.equals("messages.eligibility") && "{prefix}&cEnchantXP requires survival mode and enchantxp.use.".equals(value)) {
+            return "&cEnchantXP requires survival or creative mode and enchantxp.use.";
+        }
+        return value;
+    }
+
+    private static List<String> readLore(ConfigurationSection config, String path, Object value) {
+        String parent = path.substring(0, path.lastIndexOf('.'));
+        if (!config.contains(path, true) && ConfigValues.section(config, parent) != null) {
+            value = Collections.emptyList();
+        }
+        if (!(value instanceof List)) {
+            throw new IllegalArgumentException(path + " must be a list of strings");
+        }
+        List<String> copy = new ArrayList<>();
+        for (Object line : (List<?>) value) {
+            copy.add(template(line, path));
+        }
+        return Collections.unmodifiableList(copy);
+    }
+
+    private static void readNames(ConfigurationSection config, ConfigurationSection defaults, Map<String, String> strings) {
         ConfigurationSection enchants = ConfigValues.section(config, "enchantments");
         for (String name : Enchantments.names()) {
-            String path = "enchantments." + name + ".name";
+            String path = ENCHANTMENT_PATH + name + ".name";
             Object value = enchants != null && config.contains(path, true) ? config.get(path) : defaults.get(path);
             strings.put(path, template(value, path));
         }
-        return new MenuText(strings, lists, materials, data);
     }
 
     private static void validateTree(ConfigurationSection config, ConfigurationSection defaults, String path) {
@@ -117,49 +136,61 @@ public final class MenuText {
     }
 
     public static Set<String> placeholders(String path) {
-        Set<String> allowed = new HashSet<String>();
-        if (path.startsWith("ui.")) {
-            allowed.addAll(UI_TOKENS);
-            if (path.equals("ui.icons.sort.name") || path.equals("ui.icons.sort.lore")) {
-                allowed.add("sort");
-            }
-            if (path.equals("ui.icons.info.name") || path.equals("ui.icons.info.lore")) {
-                allowed.add("bookshelf-status");
-            }
-            if (path.startsWith("ui.titles.") || path.startsWith("ui.selection-")) {
-                allowed.removeAll(Arrays.asList("enchantment", "level", "current", "max", "cost"));
-                if (path.equals("ui.titles.item")) {
-                    allowed.remove("item");
-                }
-                if (path.equals("ui.titles.level") || path.equals("ui.titles.confirm")) {
-                    allowed.addAll(Arrays.asList("enchantment", "current", "max"));
-                }
-                if (path.equals("ui.titles.confirm")) {
-                    allowed.addAll(Arrays.asList("level", "cost"));
-                }
-            }
-        } else if (path.startsWith("messages.") && !path.equals("messages.prefix")) {
-            allowed.add("prefix");
-            allowed.add("player");
-            if (path.equals("messages.insufficient") || path.equals("messages.success")) {
-                allowed.add("cost");
-                allowed.add("balance");
-            }
-            if (path.equals("messages.success")) {
-                allowed.add("enchantment");
-                allowed.add("level");
-            }
-            if (path.equals("messages.reload-failure")) {
-                allowed.add("path");
-            }
-            if (path.equals("messages.reload-usage")) {
-                allowed.add("commands");
-            }
-            if (path.startsWith("messages.config-")) {
-                allowed.add("detail");
-            }
+        Set<String> allowed = new HashSet<>();
+        if (path.startsWith(UI_PATH)) {
+            uiPlaceholders(path, allowed);
+        } else if (path.startsWith(MESSAGE_PATH) && !path.equals(PREFIX_PATH)) {
+            messagePlaceholders(path, allowed);
         }
         return allowed;
+    }
+
+    private static void uiPlaceholders(String path, Set<String> allowed) {
+        allowed.addAll(UI_TOKENS);
+        if (path.equals("ui.icons.sort.name") || path.equals("ui.icons.sort.lore")) {
+            allowed.add("sort");
+        }
+        if (path.equals("ui.icons.info.name") || path.equals("ui.icons.info.lore")) {
+            allowed.add("bookshelf-status");
+        }
+        if (path.startsWith(TITLE_PATH) || path.startsWith("ui.selection-")) {
+            titlePlaceholders(path, allowed);
+        }
+    }
+
+    private static void titlePlaceholders(String path, Set<String> allowed) {
+        allowed.removeAll(Arrays.asList("enchantment", "level", "current", "max", "cost"));
+        if (path.equals("ui.titles.item")) {
+            allowed.remove("item");
+        }
+        if (path.equals("ui.titles.level") || path.equals("ui.titles.confirm")) {
+            allowed.addAll(Arrays.asList("enchantment", "current", "max"));
+        }
+        if (path.equals("ui.titles.confirm")) {
+            allowed.addAll(Arrays.asList("level", "cost"));
+        }
+    }
+
+    private static void messagePlaceholders(String path, Set<String> allowed) {
+        allowed.add("prefix");
+        allowed.add("player");
+        if (path.equals("messages.insufficient") || path.equals("messages.success")) {
+            allowed.add("cost");
+            allowed.add("balance");
+        }
+        if (path.equals("messages.success")) {
+            allowed.add("enchantment");
+            allowed.add("level");
+        }
+        if (path.equals("messages.reload-failure")) {
+            allowed.add("path");
+        }
+        if (path.equals("messages.reload-usage")) {
+            allowed.add("commands");
+        }
+        if (path.startsWith("messages.config-")) {
+            allowed.add("detail");
+        }
     }
 
     private static String template(Object value, String path) {
@@ -174,7 +205,9 @@ public final class MenuText {
                 throw new IllegalArgumentException(path + " contains unknown placeholder " + matcher.group());
             }
         }
-        if (TOKEN.matcher(text).replaceAll("").contains("{") || TOKEN.matcher(text).replaceAll("").contains("}")) {
+        String literal = TOKEN.matcher(text)
+                              .replaceAll("");
+        if (literal.contains("{") || literal.contains("}")) {
             throw new IllegalArgumentException(path + " contains malformed placeholder");
         }
         return ChatColor.translateAlternateColorCodes('&', text);
@@ -185,9 +218,10 @@ public final class MenuText {
     }
 
     public String title(MenuStage page, Map<String, String> values) {
-        String title = text("ui.titles." + page.name().toLowerCase(java.util.Locale.ROOT), values);
-        if (title.length() > 32) {
-            title = title.substring(0, 32);
+        String title = text(TITLE_PATH + page.name()
+                                            .toLowerCase(Locale.ROOT), values);
+        if (title.length() > MAX_TITLE_LENGTH) {
+            title = title.substring(0, MAX_TITLE_LENGTH);
         }
         if (title.endsWith(String.valueOf(ChatColor.COLOR_CHAR))) {
             title = title.substring(0, title.length() - 1);
@@ -196,24 +230,25 @@ public final class MenuText {
     }
 
     public String name(Enchantment enchantment) {
-        return text("enchantments." + enchantment.getName() + ".name", Collections.emptyMap());
+        return text(ENCHANTMENT_PATH + enchantment.getName() + ".name", Collections.emptyMap());
     }
 
     public List<String> lore(String path, Map<String, String> values) {
-        List<String> result = new ArrayList<String>();
-        for (String line : lists.get(path)) {
-            result.add(render(line, values));
-        }
-        return result;
+        return lists.get(path)
+                    .stream()
+                    .map(line -> render(line, values))
+                    .collect(Collectors.toList());
     }
 
     public void send(CommandSender sender, String message, Map<String, String> values) {
-        Map<String, String> context = new HashMap<String, String>(values);
+        Map<String, String> context = new HashMap<>(values);
         context.put("player", sender.getName() == null ? "" : sender.getName());
         context.put("prefix", "");
-        String body = text("messages." + message, context);
-        if (!ChatColor.stripColor(body).trim().isEmpty()) {
-            sender.sendMessage(text("messages.prefix", Collections.emptyMap()) + body);
+        String body = text(MESSAGE_PATH + message, context);
+        if (!ChatColor.stripColor(body)
+                      .trim()
+                      .isEmpty()) {
+            sender.sendMessage(text(PREFIX_PATH, Collections.emptyMap()) + body);
         }
     }
 

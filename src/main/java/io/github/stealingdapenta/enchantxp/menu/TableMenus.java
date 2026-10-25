@@ -401,8 +401,7 @@ public final class TableMenus implements Listener {
                 choices(player, session.snapshot(), countShelves) : Collections.emptyList();
         List<Integer> levels = page == MenuStage.LEVEL ?
                 levels(player, session.snapshot(), enchantment, countShelves) : Collections.emptyList();
-        return renderer.build(
-                this, player, session, page, enchantment, level, index, countShelves, choices, levels);
+        return renderer.build(this, player, session, new MenuHolder.Route(page, enchantment, level, index), countShelves, choices, levels);
     }
 
     private static int balance(Player player) {

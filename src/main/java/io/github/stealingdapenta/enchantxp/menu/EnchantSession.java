@@ -5,16 +5,23 @@ import org.bukkit.Location;
 import org.bukkit.inventory.ItemStack;
 
 final class EnchantSession {
+
     enum Sort {
-        DEFAULT, ASCENDING, DESCENDING;
+        DEFAULT,
+        ASCENDING,
+        DESCENDING;
 
         Sort next() {
             return values()[(ordinal() + 1) % values().length];
         }
 
         String label(boolean levels) {
-            return this == DEFAULT ? "Default" :
-                    (levels ? "Level " : "Alphabetical ") + (this == ASCENDING ? "ascending" : "descending");
+            if (this == DEFAULT) {
+                return "Default";
+            }
+            String subject = levels ? "Level " : "Alphabetical ";
+            String direction = this == ASCENDING ? "ascending" : "descending";
+            return subject + direction;
         }
     }
 

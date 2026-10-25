@@ -1,7 +1,10 @@
 package io.github.stealingdapenta.enchantxp.menu;
 
-/** One safe layout for every page; only the number of interior rows varies. */
+/**
+ * One safe layout for every page; only the number of interior rows varies.
+ */
 final class MenuLayout {
+
     final int size;
     final int back;
     final int previous;

@@ -1,8 +1,8 @@
 package io.github.stealingdapenta.enchantxp.menu;
 
 import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
-import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;
+import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
@@ -22,8 +22,11 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-/** Builds unpublished views; the controller alone owns session publication and event fences. */
+/**
+ * Builds unpublished views; the controller alone owns session publication and event fences.
+ */
 final class MenuRenderer {
+
     private final Prices prices;
     private final EnchantPolicy policy;
     private final MenuText text;
@@ -38,100 +41,131 @@ final class MenuRenderer {
         this.shelves = shelves;
     }
 
-    MenuHolder build(TableMenus controller, Player player, EnchantSession session, MenuStage page,
-            Enchantment enchantment, int level, int index, int countShelves,
-            List<Enchantment> availableChoices, List<Integer> availableLevels) {
-        List<Enchantment> choices = new ArrayList<Enchantment>(availableChoices);
-        List<Integer> levels = new ArrayList<Integer>(availableLevels);
-        if (session.sort != EnchantSession.Sort.DEFAULT) {
-            Comparator<Enchantment> names = (first, second) ->
-                    String.CASE_INSENSITIVE_ORDER.compare(ChatColor.stripColor(text.name(first)), ChatColor.stripColor(text.name(second)));
-            if (session.sort == EnchantSession.Sort.DESCENDING) {
-                names = names.reversed();
-            }
-            choices.sort(names.thenComparing(Enchantment::getName));
-            levels.sort(session.sort == EnchantSession.Sort.ASCENDING ? Comparator.naturalOrder() : Comparator.reverseOrder());
-        }
-        int count = page == MenuStage.ENCHANTMENT ? choices.size() : levels.size();
-        int pages = Math.max(1, (count + layout.capacity() - 1) / layout.capacity());
-        index = Math.max(0, Math.min(index, pages - 1));
-        PurchaseQuote quote = page == MenuStage.CONFIRM ?
-                PurchaseQuote.read(player, session, enchantment, level, prices, shelves, countShelves) : null;
-        MenuHolder holder = new MenuHolder(controller, layout, session, page, enchantment, level, index, pages, quote, count);
+    MenuHolder build(TableMenus controller, Player player, EnchantSession session, MenuHolder.Route route, int countShelves, List<Enchantment> availableChoices, List<Integer> availableLevels) {
+        List<Enchantment> choices = new ArrayList<>(availableChoices);
+        List<Integer> levels = new ArrayList<>(availableLevels);
+        sortChoices(session.sort, choices, levels);
+        int count = route.stage == MenuStage.ENCHANTMENT ? choices.size() : levels.size();
+        MenuHolder.Pagination pagination = new MenuHolder.Pagination(route.index, count, layout.capacity());
+        PurchaseQuote quote = route.stage == MenuStage.CONFIRM ? PurchaseQuote.read(player, session, route.enchantment, route.level, prices, shelves, countShelves) : null;
+        MenuHolder holder = new MenuHolder(controller, layout, session, route, pagination, quote);
         Map<String, String> values = values(player, session, holder);
-        values.put("bookshelf-status", shelves.enabled() ?
-                "Enlightened by " + ChatColor.GREEN + countShelves + ChatColor.GRAY + "/" +
-                        ChatColor.GOLD + shelves.maximum() + ChatColor.GRAY + " bookshelves" :
-                "Bookshelf pricing disabled");
-        Inventory inventory = Bukkit.createInventory(holder, layout.size, text.title(page, values));
+        values.put("bookshelf-status", bookshelfStatus(countShelves));
+        Inventory inventory = Bukkit.createInventory(holder, layout.size, text.title(route.stage, values));
         holder.attach(inventory);
+        renderFrame(inventory, values);
+        renderNavigation(session, holder, values);
+        renderStage(player, session, holder, values, choices, levels, countShelves);
+        return holder;
+    }
+
+    private void sortChoices(EnchantSession.Sort sort, List<Enchantment> choices, List<Integer> levels) {
+        if (sort == EnchantSession.Sort.DEFAULT) {
+            return;
+        }
+        Comparator<Enchantment> names = (first, second) -> String.CASE_INSENSITIVE_ORDER.compare(ChatColor.stripColor(text.name(first)), ChatColor.stripColor(text.name(second)));
+        if (sort == EnchantSession.Sort.DESCENDING) {
+            names = names.reversed();
+        }
+        choices.sort(names.thenComparing(Enchantment::getName));
+        levels.sort(sort == EnchantSession.Sort.ASCENDING ? Comparator.naturalOrder() : Comparator.reverseOrder());
+    }
+
+    private String bookshelfStatus(int count) {
+        if (!shelves.enabled()) {
+            return "Bookshelf pricing disabled";
+        }
+        return "Enlightened by " + ChatColor.GREEN + count + ChatColor.GRAY + "/" + ChatColor.GOLD + shelves.maximum() + ChatColor.GRAY + " bookshelves";
+    }
+
+    private void renderFrame(Inventory inventory, Map<String, String> values) {
         for (int slot = 0; slot < layout.size; slot++) {
             inventory.setItem(slot, text.icon(layout.border(slot) ? "border" : "fill", values));
         }
         inventory.setItem(layout.cancel, text.icon("cancel", values));
         inventory.setItem(layout.info, text.icon("info", values));
-        if (holder.availableChoices > 1 && (page == MenuStage.ENCHANTMENT || page == MenuStage.LEVEL)) {
+    }
+
+    private void renderNavigation(EnchantSession session, MenuHolder holder, Map<String, String> values) {
+        Inventory inventory = holder.getInventory();
+        if (holder.availableChoices > 1 && (holder.page == MenuStage.ENCHANTMENT || holder.page == MenuStage.LEVEL)) {
             inventory.setItem(layout.sort, text.icon("sort", values));
         }
-        if (page != MenuStage.ITEM) {
+        if (holder.page != MenuStage.ITEM) {
             inventory.setItem(layout.back, text.icon("back", values));
-            ItemStack preview = session.snapshot();
-            List<String> lore = preview.getItemMeta().hasLore() ?
-                    preview.getItemMeta().getLore() : new ArrayList<String>();
-            lore.addAll(text.lore("ui.selection-lore", values));
-            MenuText.decorate(preview, text.text("ui.selection-name", values), lore);
-            inventory.setItem(TableMenus.PREVIEW_SLOT, preview);
+            inventory.setItem(TableMenus.PREVIEW_SLOT, selectionPreview(session, values));
         }
-        if (index > 0) {
+        if (holder.index > 0) {
             inventory.setItem(layout.previous, text.icon("previous", values));
         }
-        if (index + 1 < pages) {
+        if (holder.index + 1 < holder.pages) {
             inventory.setItem(layout.next, text.icon("next", values));
         }
-        if (page == MenuStage.ITEM) {
+    }
+
+    private ItemStack selectionPreview(EnchantSession session, Map<String, String> values) {
+        ItemStack preview = session.snapshot();
+        ItemMeta meta = preview.getItemMeta();
+        List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+        lore.addAll(text.lore("ui.selection-lore", values));
+        MenuText.decorate(preview, text.text("ui.selection-name", values), lore);
+        return preview;
+    }
+
+    private void renderStage(Player player, EnchantSession session, MenuHolder holder, Map<String, String> values, List<Enchantment> choices, List<Integer> levels, int countShelves) {
+        Inventory inventory = holder.getInventory();
+        if (holder.page == MenuStage.ITEM) {
             inventory.setItem(layout.input, null);
             inventory.setItem(layout.instructions, text.icon("instructions", values));
-        } else if (page == MenuStage.ENCHANTMENT || page == MenuStage.LEVEL) {
-            for (int offset = 0; offset < layout.capacity() && index * layout.capacity() + offset < count; offset++) {
-                int entry = index * layout.capacity() + offset;
-                int slot = layout.contentSlot(offset);
-                Enchantment choice = page == MenuStage.ENCHANTMENT ? choices.get(entry) : enchantment;
-                int offered = page == MenuStage.ENCHANTMENT ? 0 : levels.get(entry);
-                if (page == MenuStage.ENCHANTMENT) {
-                    holder.choices.put(slot, choice);
-                } else {
-                    holder.levels.put(slot, offered);
-                }
-                Map<String, String> option;
-                if (page == MenuStage.ENCHANTMENT) {
-                    option = new HashMap<String, String>(values);
-                    option.put("enchantment", text.name(choice));
-                } else {
-                    option = optionValues(player, session, choice, offered, values,
-                            PurchaseQuote.read(player, session, choice, offered, prices, shelves, countShelves));
-                }
-                inventory.setItem(slot, text.book(choice, offered, option,
-                        page == MenuStage.ENCHANTMENT ? "type" : "option"));
-            }
+        } else if (holder.page == MenuStage.ENCHANTMENT || holder.page == MenuStage.LEVEL) {
+            renderChoices(player, session, holder, values, choices, levels, countShelves);
         } else {
-            inventory.setItem(layout.review, text.book(enchantment, level, values, "review"));
-            inventory.setItem(layout.confirm, text.icon(quote.affordable ? "confirm" : "insufficient", values));
+            inventory.setItem(layout.review, text.book(holder.enchantment, holder.level, values, "review"));
+            inventory.setItem(layout.confirm, text.icon(holder.quote.affordable ? "confirm" : "insufficient", values));
         }
-        return holder;
+    }
+
+    private void renderChoices(Player player, EnchantSession session, MenuHolder holder, Map<String, String> values, List<Enchantment> choices, List<Integer> levels, int countShelves) {
+        for (int offset = 0; offset < layout.capacity() && holder.index * layout.capacity() + offset < holder.availableChoices; offset++) {
+            int entry = holder.index * layout.capacity() + offset;
+            int slot = layout.contentSlot(offset);
+            if (holder.page == MenuStage.ENCHANTMENT) {
+                renderEnchantment(holder, slot, choices.get(entry), values);
+            } else {
+                renderLevel(player, session, holder, slot, levels.get(entry), values, countShelves);
+            }
+        }
+    }
+
+    private void renderEnchantment(MenuHolder holder, int slot, Enchantment enchantment, Map<String, String> values) {
+        holder.choices.put(slot, enchantment);
+        Map<String, String> option = new HashMap<>(values);
+        option.put("enchantment", text.name(enchantment));
+        holder.getInventory()
+              .setItem(slot, text.book(enchantment, 0, option, "type"));
+    }
+
+    private void renderLevel(Player player, EnchantSession session, MenuHolder holder, int slot, int level, Map<String, String> values, int countShelves) {
+        holder.levels.put(slot, level);
+        PurchaseQuote quote = PurchaseQuote.read(player, session, holder.enchantment, level, prices, shelves, countShelves);
+        Map<String, String> option = optionValues(player, session, holder.enchantment, level, values, quote);
+        holder.getInventory()
+              .setItem(slot, text.book(holder.enchantment, level, option, "option"));
     }
 
     Map<String, String> values(Player player, EnchantSession session, MenuHolder holder) {
-        Map<String, String> values = new HashMap<String, String>();
+        Map<String, String> values = new HashMap<>();
         values.put("player", player.getName() == null ? "" : player.getName());
-        values.put("balance", player.getGameMode() == GameMode.CREATIVE ?
-                text.text("ui.unlimited-balance", Collections.emptyMap()) : Integer.toString(balance(player)));
+        values.put("balance", player.getGameMode() == GameMode.CREATIVE ? text.text("ui.unlimited-balance", Collections.emptyMap()) : Integer.toString(balance(player)));
         values.put("page", Integer.toString(holder.index + 1));
         values.put("pages", Integer.toString(holder.pages));
         values.put("sort", session.sort.label(holder.page == MenuStage.LEVEL || holder.page == MenuStage.CONFIRM));
         if (session.hasSelection()) {
             ItemStack item = session.snapshot();
             ItemMeta meta = item.getItemMeta();
-            values.put("item", meta.hasDisplayName() ? meta.getDisplayName() : item.getType().name().replace('_', ' '));
+            values.put("item", meta.hasDisplayName() ? meta.getDisplayName() : item.getType()
+                                                                                   .name()
+                                                                                   .replace('_', ' '));
         }
         if (holder.enchantment != null) {
             values = optionValues(player, session, holder.enchantment, holder.level, values, holder.quote);
@@ -139,17 +173,27 @@ final class MenuRenderer {
         return values;
     }
 
-    private Map<String, String> optionValues(Player player, EnchantSession session, Enchantment enchantment, int level,
-            Map<String, String> values, PurchaseQuote quote) {
-        Map<String, String> result = new HashMap<String, String>(values);
+    private Map<String, String> optionValues(Player player, EnchantSession session, Enchantment enchantment, int level, Map<String, String> values, PurchaseQuote quote) {
+        Map<String, String> result = new HashMap<>(values);
         result.put("enchantment", text.name(enchantment));
         result.put("level", level == 0 ? "" : Integer.toString(level));
         result.put("cost", quote == null ? "" : Integer.toString(quote.cost));
-        result.put("missing", quote == null ? "" : Integer.toString(player.getGameMode() == GameMode.CREATIVE ?
-                0 : Math.max(0, quote.cost - balance(player))));
+        result.put("missing", missingXp(player, quote));
         result.put("current", Integer.toString(Enchantments.level(session.snapshot(), enchantment)));
-        result.put("max", Integer.toString(policy.maximum(session.snapshot().getType(), enchantment)));
+        result.put("max", Integer.toString(policy.maximum(session.snapshot()
+                                                                 .getType(), enchantment)));
         return result;
+    }
+
+    private static String missingXp(Player player, PurchaseQuote quote) {
+        if (quote == null) {
+            return "";
+        }
+        int missing = 0;
+        if (player.getGameMode() != GameMode.CREATIVE) {
+            missing = Math.max(0, quote.cost - balance(player));
+        }
+        return Integer.toString(missing);
     }
 
     private static int balance(Player player) {

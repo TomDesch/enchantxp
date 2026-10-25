@@ -10,6 +10,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 
 final class MenuHolder implements InventoryHolder {
+
     final UUID sessionId;
     final TableMenus controller;
     final MenuLayout layout;
@@ -21,28 +22,51 @@ final class MenuHolder implements InventoryHolder {
     final int pages;
     final int availableChoices;
     final PurchaseQuote quote;
-    final Map<Integer, Enchantment> choices = new HashMap<Integer, Enchantment>();
-    final Map<Integer, Integer> levels = new HashMap<Integer, Integer>();
+    final Map<Integer, Enchantment> choices = new HashMap<>();
+    final Map<Integer, Integer> levels = new HashMap<>();
     private Inventory inventory;
 
-    MenuHolder(TableMenus controller, MenuLayout layout, EnchantSession session, MenuStage page,
-            Enchantment enchantment, int level, int index, int pages) {
-        this(controller, layout, session, page, enchantment, level, index, pages, null, 0);
-    }
-
-    MenuHolder(TableMenus controller, MenuLayout layout, EnchantSession session, MenuStage page,
-            Enchantment enchantment, int level, int index, int pages, PurchaseQuote quote, int availableChoices) {
+    MenuHolder(TableMenus controller, MenuLayout layout, EnchantSession session, Route route, Pagination pagination, PurchaseQuote quote) {
         this.controller = controller;
         this.layout = layout;
         this.sessionId = session.id;
         this.owner = session.owner;
-        this.page = page;
-        this.enchantment = enchantment;
-        this.level = level;
-        this.index = index;
-        this.pages = pages;
-        this.availableChoices = availableChoices;
+        this.page = route.stage;
+        this.enchantment = route.enchantment;
+        this.level = route.level;
+        this.index = pagination.index;
+        this.pages = pagination.pages;
+        this.availableChoices = pagination.count;
         this.quote = quote;
+    }
+
+    /** A requested stage and target; pagination clamps the requested page before publication. */
+    static final class Route {
+
+        final MenuStage stage;
+        final Enchantment enchantment;
+        final int level;
+        final int index;
+
+        Route(MenuStage stage, Enchantment enchantment, int level, int index) {
+            this.stage = stage;
+            this.enchantment = enchantment;
+            this.level = level;
+            this.index = index;
+        }
+    }
+
+    static final class Pagination {
+
+        final int index;
+        final int pages;
+        final int count;
+
+        Pagination(int requested, int count, int capacity) {
+            this.count = count;
+            this.pages = Math.max(1, (count + capacity - 1) / capacity);
+            this.index = Math.max(0, Math.min(requested, pages - 1));
+        }
     }
 
     void attach(Inventory inventory) {

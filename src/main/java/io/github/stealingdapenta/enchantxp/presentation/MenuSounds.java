@@ -2,6 +2,7 @@ package io.github.stealingdapenta.enchantxp.presentation;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.Sound;
@@ -9,35 +10,43 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
 public final class MenuSounds {
+
+    private static final float MAX_VOLUME = 4;
+    private static final float MAX_PITCH = 2;
+    private static final String SOUND_ERROR = " must be a legacy sound name or empty string";
     private final Map<String, Effect> effects;
     private final boolean enabled;
 
     private MenuSounds(boolean enabled, Map<String, Effect> effects) {
         this.enabled = enabled;
-        this.effects = effects;
+        this.effects = Collections.unmodifiableMap(new HashMap<>(effects));
     }
 
     public static MenuSounds read(ConfigurationSection config) {
         ConfigurationSection defaults = ConfigValues.defaults();
         ConfigValues.keys(ConfigValues.section(config, "sounds"), "enabled", "click", "success", "insufficient");
-        Map<String, Effect> effects = new HashMap<String, Effect>();
+        Map<String, Effect> effects = new HashMap<>();
         for (String key : new String[]{"click", "success", "insufficient"}) {
-            String path = "sounds." + key;
-            ConfigValues.keys(ConfigValues.section(config, path), "sound", "volume", "pitch");
-            Object name = ConfigValues.value(config, defaults, path + ".sound");
-            if (!(name instanceof String)) {
-                throw new IllegalArgumentException(path + ".sound must be a legacy sound name or empty string");
-            }
-            Sound sound;
-            try {
-                sound = ((String) name).isEmpty() ? null : Sound.valueOf((String) name);
-            } catch (IllegalArgumentException failure) {
-                throw new IllegalArgumentException(path + ".sound must be a legacy sound name or empty string");
-            }
-            effects.put(key, new Effect(sound, number(config, defaults, path + ".volume", 0, 4),
-                    number(config, defaults, path + ".pitch", 0, 2)));
+            effects.put(key, readEffect(config, defaults, "sounds." + key));
         }
         return new MenuSounds(ConfigValues.bool(config, defaults, "sounds.enabled"), effects);
+    }
+
+    private static Effect readEffect(ConfigurationSection config, ConfigurationSection defaults, String path) {
+        ConfigValues.keys(ConfigValues.section(config, path), "sound", "volume", "pitch");
+        Sound sound = sound(ConfigValues.value(config, defaults, path + ".sound"), path + ".sound");
+        return new Effect(sound, number(config, defaults, path + ".volume", 0, MAX_VOLUME), number(config, defaults, path + ".pitch", 0, MAX_PITCH));
+    }
+
+    private static Sound sound(Object name, String path) {
+        if (!(name instanceof String)) {
+            throw new IllegalArgumentException(path + SOUND_ERROR);
+        }
+        try {
+            return ((String) name).isEmpty() ? null : Sound.valueOf((String) name);
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException(path + SOUND_ERROR);
+        }
     }
 
     private static float number(ConfigurationSection config, ConfigurationSection defaults, String path, float min, float max) {
@@ -60,11 +69,12 @@ public final class MenuSounds {
     }
 
     private static final class Effect {
-        final Sound sound;
-        final float volume;
-        final float pitch;
 
-        Effect(Sound sound, float volume, float pitch) {
+        private final Sound sound;
+        private final float volume;
+        private final float pitch;
+
+        private Effect(Sound sound, float volume, float pitch) {
             this.sound = sound;
             this.volume = volume;
             this.pitch = pitch;
