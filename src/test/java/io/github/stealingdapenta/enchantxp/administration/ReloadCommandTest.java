@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -79,7 +80,7 @@ class ReloadCommandTest {
         for (String[] args : new String[][]{{}, {"bad"}, {"reload", "bad"}}) {
             assertTrue(command.execute(console, "enchantxp", args));
         }
-        verify(console, times(3)).sendMessage(contains("Usage: /enchantxp reload"));
+        verify(console, times(3)).sendMessage(contains("Commands you can use: /enchantxp help, /enchantxp reload"));
         assertTrue(fixture.asyncTasks.isEmpty());
         request(console);
         assertEquals(1, fixture.asyncTasks.size());
@@ -330,6 +331,29 @@ class ReloadCommandTest {
             fixture.items.get(0).removeEnchantment(ServerFixture.SHARPNESS);
         }
         verify(console, times(3)).sendMessage(contains("Previous settings kept"));
+    }
+
+    @Test
+    void helpUnknownAndNoArgumentsRevealOnlyUsableCommandsWithoutReloadPermission() {
+        for (String[] arguments : new String[][]{{}, {"help"}, {"unknown"}, {"config", "extra"}}) {
+            command.execute(fixture.player, "enchantxp", arguments);
+        }
+        verify(fixture.player, times(4)).sendMessage(contains("Commands you can use: /enchantxp help"));
+        verify(fixture.player, never()).sendMessage(contains("/enchantxp reload"));
+        verify(fixture.player, never()).sendMessage(contains("/enchantxp config"));
+        assertEquals(Collections.singletonList("help"),
+                reload.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
+        when(fixture.player.hasPermission(ConfigEditor.PERMISSION)).thenReturn(true);
+        command.execute(fixture.player, "enchantxp", new String[]{"HELP"});
+        verify(fixture.player).sendMessage(contains("/enchantxp config (in-game)"));
+        assertEquals(Arrays.asList("help", "config"),
+                reload.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
+        when(console.hasPermission(ConfigEditor.PERMISSION)).thenReturn(true);
+        command.execute(console, "enchantxp", new String[]{"help"});
+        verify(console, never()).sendMessage(contains("/enchantxp config"));
+        assertEquals(Arrays.asList("help", "reload"),
+                reload.onTabComplete(console, command, "enchantxp", new String[]{""}));
+        assertTrue(fixture.asyncTasks.isEmpty());
     }
 
     private void request(CommandSender sender) {

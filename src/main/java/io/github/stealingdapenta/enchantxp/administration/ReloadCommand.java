@@ -81,7 +81,9 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         requireMainThread();
-        if (args.length == 1 && args[0].equalsIgnoreCase("config")) {
+        if (args.length != 1 || (!args[0].equalsIgnoreCase("config") && !args[0].equalsIgnoreCase("reload"))) {
+            help(sender);
+        } else if (args[0].equalsIgnoreCase("config")) {
             if (!sender.hasPermission(ConfigEditor.PERMISSION)) {
                 send(sender, "config-denied");
             } else if (!(sender instanceof Player)) {
@@ -93,8 +95,6 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             }
         } else if (!sender.hasPermission(PERMISSION)) {
             send(sender, "reload-denied");
-        } else if (args.length != 1 || !args[0].equalsIgnoreCase("reload")) {
-            send(sender, "reload-usage");
         } else if (!active) {
             send(sender, "reload-stopped");
         } else if (busy.get() != null) {
@@ -106,6 +106,18 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             executeAsync(sender, () -> readReload(sender, request, owner), owner);
         }
         return true;
+    }
+
+    private void help(CommandSender sender) {
+        List<String> commands = new ArrayList<>();
+        commands.add("/enchantxp help");
+        if (sender instanceof Player && sender.hasPermission(ConfigEditor.PERMISSION)) {
+            commands.add("/enchantxp config (in-game)");
+        }
+        if (sender.hasPermission(PERMISSION)) {
+            commands.add("/enchantxp reload (console or in-game)");
+        }
+        settings.text().send(sender, "reload-usage", Collections.singletonMap("commands", String.join(", ", commands)));
     }
 
     private void readReload(CommandSender sender, long request, Object owner) {
@@ -482,7 +494,10 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         List<String> result = new ArrayList<String>();
         if (active && args.length == 1) {
             String prefix = args[0].toLowerCase(Locale.ROOT);
-            if (sender.hasPermission(ConfigEditor.PERMISSION) && "config".startsWith(prefix)) {
+            if ("help".startsWith(prefix)) {
+                result.add("help");
+            }
+            if (sender instanceof Player && sender.hasPermission(ConfigEditor.PERMISSION) && "config".startsWith(prefix)) {
                 result.add("config");
             }
             if (sender.hasPermission(PERMISSION) && "reload".startsWith(prefix)) {

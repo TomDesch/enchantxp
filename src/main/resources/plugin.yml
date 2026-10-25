@@ -8,8 +8,8 @@ description: Choose vanilla enchantments at a table for raw experience points.
 
 commands:
   enchantxp:
-    description: Edit settings in-game or reload config.yml.
-    usage: /enchantxp <config|reload>
+    description: Show available commands, edit settings in-game or reload config.yml.
+    usage: /enchantxp <help|config|reload>
 
 permissions:
   enchantxp.use:

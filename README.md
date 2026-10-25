@@ -106,8 +106,9 @@ instructions, adapt incompatible keys explicitly, then set the documented schema
 The editor preserves the schema; only incompatible schema changes increment it.
 Future releases do not promise unconditional compatibility.
 Edit it, then run `/enchantxp reload` as console or with `enchantxp.reload`
-(default op). Other arguments show usage; permitted senders can tab-complete
-`config` and `reload` according to their permissions. Completion is case-insensitive;
+(default op). `/enchantxp help`, no arguments and unknown arguments list only usable
+commands; help needs no administrative permission. `config` is player-only.
+Tab completion offers `help`, `config` and `reload` according to access. Completion is case-insensitive;
 extra arguments have no suggestions. Reload and editor saves share one queue slot.
 
 ### In-game settings

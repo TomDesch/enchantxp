@@ -264,7 +264,7 @@ messages:
   quote-changed: '&eThe price, mode or access changed. Review the refreshed selection before confirming.'
   failure: '&cEnchanting failed. Please contact a server operator.'
   reload-denied: '&cYou need enchantxp.reload.'
-  reload-usage: '&eUsage: /enchantxp reload or /enchantxp config'
+  reload-usage: '&eCommands you can use: {commands}'
   reload-busy: '&eA settings operation is already in progress. Please try again shortly.'
   reload-stopped: '&cEnchantXP is stopped.'
   reload-success: '&aConfiguration reloaded. Reopen the enchanting table.'

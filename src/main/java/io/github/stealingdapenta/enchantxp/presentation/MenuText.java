@@ -149,6 +149,9 @@ public final class MenuText {
             if (path.equals("messages.reload-failure")) {
                 allowed.add("path");
             }
+            if (path.equals("messages.reload-usage")) {
+                allowed.add("commands");
+            }
             if (path.startsWith("messages.config-")) {
                 allowed.add("detail");
             }
