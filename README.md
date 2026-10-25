@@ -29,6 +29,27 @@ Minecraft versions and JDK 21 as a 1.12.2 runtime are not supported claims.
 There is no api-version, PDC, NMS, reflection, Paper-only API or runtime library.
 Legacy text and enchantment APIs are intentional 1.12.2 exceptions.
 
+## Source map
+
+Only `EnchantXpPlugin` lives in the root package; it wires listeners and commands.
+Under `io.github.stealingdapenta.enchantxp`:
+
+- `administration`: operator drafts, `EditorPages`, serialized reload/save and file cleanup.
+  Drafts and save tickets stay together, package-private.
+- `menu`: table events, session ownership, quotes, transactions and `MenuRenderer`.
+  The renderer builds unpublished views; the controller owns lifecycle fences.
+- `configuration`: immutable validated `Settings`; `configuration.values` contains
+  shared strict YAML readers and fresh packaged defaults.
+- `presentation`: immutable text/sound settings and the shared menu stages.
+- `enchanting`: eligibility, enchantment rules, prices, shelves, permissions and raw XP.
+
+Dependencies point from administration to menu/configuration, from menu to
+configuration/presentation/enchanting, and from configuration to presentation/enchanting.
+Presentation uses enchanting names; both depend only on the shared YAML readers below them.
+Neither rules nor presentation depend on controllers. Tests mirror these boundaries;
+menu integration fixtures keep private workflow access, while `testsupport` shares YAML
+and in-memory metadata without exposing production state.
+
 ## Use
 
 - In survival or creative with `enchantxp.use` (default true), right click an enchanting

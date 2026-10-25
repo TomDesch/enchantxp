@@ -1,5 +1,8 @@
 package io.github.stealingdapenta.enchantxp;
 
+import io.github.stealingdapenta.enchantxp.administration.ReloadCommand;
+import io.github.stealingdapenta.enchantxp.configuration.Settings;
+import io.github.stealingdapenta.enchantxp.menu.TableMenus;
 import java.io.File;
 import java.io.IOException;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -21,7 +24,7 @@ public final class EnchantXpPlugin extends JavaPlugin {
             menus = new TableMenus(this, settings);
             getServer().getPluginManager().registerEvents(menus, this);
             reload = new ReloadCommand(this, menus, settings, new File(getDataFolder(), "config.yml"));
-            getServer().getPluginManager().registerEvents(reload.editor(), this);
+            getServer().getPluginManager().registerEvents(reload.editorListener(), this);
             PluginCommand command = getCommand("enchantxp");
             if (command == null) {
                 throw new IllegalStateException("Missing enchantxp command registration");

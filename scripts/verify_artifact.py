@@ -37,7 +37,8 @@ def inspect_jar(artifact, version):
             if not name.endswith(".class"):
                 continue
             require(name.startswith(PACKAGE), "Bundled third-party or test class: " + name)
-            require(not name.rsplit("/", 1)[-1].startswith(("ServerFixture", "MemoryItemMeta")) and
+            require("/testsupport/" not in name and
+                    not name.rsplit("/", 1)[-1].startswith(("ServerFixture", "MemoryItemMeta", "MemoryBookMeta")) and
                     not name.endswith("Test.class"), "Bundled test class: " + name)
             data = jar.read(name)
             require(len(data) >= 8 and data[:4] == b"\xca\xfe\xba\xbe", "Invalid class: " + name)

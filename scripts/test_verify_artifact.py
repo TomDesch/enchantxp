@@ -27,7 +27,7 @@ class ArtifactCheckTest(unittest.TestCase):
 
     def test_metadata_resource_bytecode_and_dependency_defects_are_rejected(self):
         main = "io/github/stealingdapenta/enchantxp/EnchantXpPlugin.class"
-        for defect in ("api-version", "version", "resource", "bytecode", "server", "test", "paper-reference", "paper-metadata"):
+        for defect in ("api-version", "version", "resource", "bytecode", "server", "test", "test-support", "paper-reference", "paper-metadata"):
             entries = dict(self.entries)
             if defect == "api-version":
                 entries["plugin.yml"] += b"\napi-version: 1.13\n"
@@ -41,6 +41,8 @@ class ArtifactCheckTest(unittest.TestCase):
                 entries["org/bukkit/Server.class"] = entries[main]
             elif defect == "test":
                 entries["org/junit/Test.class"] = entries[main]
+            elif defect == "test-support":
+                entries["io/github/stealingdapenta/enchantxp/testsupport/YamlDocuments.class"] = entries[main]
             elif defect == "paper-reference":
                 entries[main] += b"com/destroystokyo/paper/Example"
             elif defect == "paper-metadata":
