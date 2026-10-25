@@ -1,4 +1,4 @@
-# EnchantXP 0.2.0-alpha.4
+# EnchantXP 0.2.0-alpha.5
 
 Enchanting-table menus for exactly Spigot and Paper 1.12.2. Select an inventory
 item, a vanilla enchantment, a level, then confirm payment in raw XP. No lapis,
@@ -19,7 +19,7 @@ python scripts\test_verify_artifact.py
 ```
 
 Preserve old release/playtest JARs outside `target` before a clean build. Copy only
-`target\enchantxp-0.2.0-alpha.4.jar` into `plugins` while the server is stopped, then start
+`target\enchantxp-0.2.0-alpha.5.jar` into `plugins` while the server is stopped, then start
 normally. Do not use server `/reload`.
 
 Build and server JVMs are separate. Spigot's BuildTools

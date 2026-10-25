@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.stealingdapenta</groupId>
   <artifactId>enchantxp</artifactId>
-  <version>0.2.0-alpha.4</version>
+  <version>0.2.0-alpha.5</version>
   <name>EnchantXP</name>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

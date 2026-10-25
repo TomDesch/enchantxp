@@ -252,7 +252,8 @@ ui:
 # Set a message to '' to hide it. This does not turn off sounds.
 # {player} is allowed in all messages. Extra tokens:
 # insufficient: {cost}, {balance}; success: {cost}, {balance}, {enchantment}, {level}.
-# reload-failure also accepts {path}. Editor feedback accepts {detail}.
+# reload-failure also accepts {path}; reload-usage accepts permission-filtered {commands}.
+# Editor feedback accepts {detail}; config-prompt inserts typed instructions after color processing.
 # Failed validation keeps your current settings. Prefix takes no placeholders.
 messages:
   prefix: '&5EnchantXP &8> &r'
