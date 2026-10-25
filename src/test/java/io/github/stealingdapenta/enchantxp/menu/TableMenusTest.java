@@ -85,6 +85,17 @@ class TableMenusTest {
             }
             assertEquals(cap == -1 ? 70 : 5, levels.size());
             assertEquals(cap == -1, levels.contains(70));
+            if (cap == -1) {
+                fixture.balance(200000000);
+                int seventy = fixture.menu().levels.entrySet().stream()
+                        .filter(entry -> entry.getValue() == 70).findFirst().get().getKey();
+                fixture.click(seventy, ClickType.LEFT);
+                fixture.tick();
+                fixture.click(fixture.confirmSlot(), ClickType.LEFT);
+                fixture.tick();
+                assertEquals(16250000, Experience.total(fixture.level, fixture.progress));
+                assertEquals(70, Enchantments.level(fixture.items.get(0), fortune));
+            }
         }
     }
 
@@ -1082,7 +1093,7 @@ class TableMenusTest {
                 stripped(instructions.getLore()));
         ItemMeta info = fixture.view.getTopInventory().getItem(TableMenus.INFO_SLOT).getItemMeta();
         assertEquals("Balance: 1000 XP", ChatColor.stripColor(info.getDisplayName()));
-        assertEquals(Collections.singletonList("Page 1 of 1"), stripped(info.getLore()));
+        assertEquals(Arrays.asList("Bookshelf pricing disabled", "Page 1 of 1"), stripped(info.getLore()));
         assertEquals(" ", fixture.view.getTopInventory().getItem(0).getItemMeta().getDisplayName());
         fixture.confirmPage();
         fixture.click(TableMenus.CONFIRM_SLOT, ClickType.LEFT);
