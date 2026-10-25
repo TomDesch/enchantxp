@@ -3,6 +3,7 @@ package io.github.stealingdapenta.enchantxp.enchanting;
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import org.bukkit.Material;
@@ -16,6 +17,7 @@ public final class EnchantPolicy {
 
     public static final int MAX_LEVEL = 255;
     private static final String MAX_LEVEL_KEY = "max-level";
+    private static final String ENABLED_KEY = "enabled";
     private final Map<String, Integer> limits;
     private final Map<String, Boolean> enabled;
     private final Map<Material, Map<String, Integer>> items;
@@ -23,7 +25,9 @@ public final class EnchantPolicy {
     private EnchantPolicy(Map<String, Integer> limits, Map<String, Boolean> enabled, Map<Material, Map<String, Integer>> items) {
         this.limits = Collections.unmodifiableMap(new HashMap<>(limits));
         this.enabled = Collections.unmodifiableMap(new HashMap<>(enabled));
-        this.items = Collections.unmodifiableMap(new HashMap<>(items));
+        Map<Material, Map<String, Integer>> itemCopy = new EnumMap<>(Material.class);
+        itemCopy.putAll(items);
+        this.items = Collections.unmodifiableMap(itemCopy);
     }
 
     public static EnchantPolicy vanilla() {
@@ -43,11 +47,11 @@ public final class EnchantPolicy {
             for (String name : enchants.getKeys(false)) {
                 requireName(name, "enchantments." + name);
                 ConfigurationSection enchant = ConfigValues.requiredSection(config, "enchantments." + name);
-                ConfigValues.keys(enchant, "name", "enabled", MAX_LEVEL_KEY, "base-xp", "levels");
-                if (enchant.contains("enabled", true)) {
-                    Object value = enchant.get("enabled");
+                ConfigValues.keys(enchant, "name", ENABLED_KEY, MAX_LEVEL_KEY, "base-xp", "levels");
+                if (enchant.contains(ENABLED_KEY, true)) {
+                    Object value = enchant.get(ENABLED_KEY);
                     if (!(value instanceof Boolean)) {
-                        throw new IllegalArgumentException(enchant.getCurrentPath() + ".enabled must be boolean");
+                        throw new IllegalArgumentException(enchant.getCurrentPath() + "." + ENABLED_KEY + " must be boolean");
                     }
                     enabled.put(name, (Boolean) value);
                 }
@@ -59,7 +63,7 @@ public final class EnchantPolicy {
     }
 
     private static Map<Material, Map<String, Integer>> readItems(ConfigurationSection config) {
-        Map<Material, Map<String, Integer>> items = new HashMap<>();
+        Map<Material, Map<String, Integer>> items = new EnumMap<>(Material.class);
         ConfigurationSection configuredItems = ConfigValues.section(config, "items");
         if (configuredItems != null) {
             for (String materialName : configuredItems.getKeys(false)) {
@@ -82,7 +86,7 @@ public final class EnchantPolicy {
     }
 
     public int maximum(Material material, Enchantment enchantment) {
-        if (!enabled.getOrDefault(enchantment.getName(), true)) {
+        if (Boolean.FALSE.equals(enabled.get(enchantment.getName()))) {
             return 0;
         }
 

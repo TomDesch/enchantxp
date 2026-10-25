@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.configuration.values;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -17,8 +18,15 @@ public final class ConfigValues {
     }
 
     public static YamlConfiguration defaults() {
+        return readDefaults(ConfigValues.class.getResourceAsStream("/config.yml"));
+    }
+
+    static YamlConfiguration readDefaults(InputStream resource) {
+        if (resource == null) {
+            throw new IllegalStateException("Missing packaged resource /config.yml");
+        }
         YamlConfiguration defaults = new YamlConfiguration();
-        try (InputStreamReader reader = new InputStreamReader(ConfigValues.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8)) {
+        try (InputStreamReader reader = new InputStreamReader(resource, StandardCharsets.UTF_8)) {
             defaults.load(reader);
         } catch (IOException | InvalidConfigurationException failure) {
             throw new IllegalStateException("Cannot read packaged config.yml", failure);
@@ -50,6 +58,7 @@ public final class ConfigValues {
         return (Boolean) value;
     }
 
+    /** Returns null for an absent optional section; rejects a present value of the wrong type. */
     public static ConfigurationSection section(ConfigurationSection config, String path) {
         if (!config.contains(path, true)) {
             return null;
@@ -73,6 +82,7 @@ public final class ConfigValues {
         }
     }
 
+    /** Requires a section and reports its configuration path when absent or malformed. */
     public static ConfigurationSection requiredSection(ConfigurationSection config, String path) {
         ConfigurationSection section = section(config, path);
         if (section == null) {

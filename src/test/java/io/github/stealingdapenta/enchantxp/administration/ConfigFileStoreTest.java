@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +39,37 @@ class ConfigFileStoreTest {
             }
         }
         Files.delete(directory);
+    }
+
+    @Test
+    void failedExclusiveStageCreationNeverDeletesAnExistingUnownedFile() throws Exception {
+        UUID collision = UUID.randomUUID();
+        Path existing = file.resolveSibling("config.yml.stage-" + collision);
+        byte[] unrelated = bytes("existing operator file");
+        Files.write(existing, unrelated);
+        byte[] hash = ConfigFileStore.hash(Files.readAllBytes(file));
+        try (MockedStatic<UUID> ids = mockStatic(UUID.class, CALLS_REAL_METHODS)) {
+            ids.when(UUID::randomUUID).thenReturn(collision);
+            assertThrows(IOException.class, () -> store.stage("new", hash));
+        }
+        assertArrayEquals(unrelated, Files.readAllBytes(existing));
+    }
+
+    @Test
+    void failedExclusiveBackupCreationNeverDeletesAnExistingUnownedFile() throws Exception {
+        byte[] original = Files.readAllBytes(file);
+        byte[] hash = ConfigFileStore.hash(original);
+        Path staged = store.stage("new", hash);
+        UUID collision = UUID.randomUUID();
+        Path existing = file.resolveSibling("config.yml.stage-" + collision);
+        byte[] unrelated = bytes("existing operator file");
+        Files.write(existing, unrelated);
+        try (MockedStatic<UUID> ids = mockStatic(UUID.class, CALLS_REAL_METHODS)) {
+            ids.when(UUID::randomUUID).thenReturn(collision);
+            assertThrows(IOException.class, () -> store.commit(staged, hash, "new", () -> true));
+        }
+        assertArrayEquals(unrelated, Files.readAllBytes(existing));
+        assertArrayEquals(original, Files.readAllBytes(file));
     }
 
     @Test

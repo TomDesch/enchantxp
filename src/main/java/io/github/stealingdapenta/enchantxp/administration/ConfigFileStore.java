@@ -75,13 +75,8 @@ class ConfigFileStore {
         }
         unchanged(expectedHash);
         Path staged = sibling(".stage-");
-        try {
-            Files.write(staged, bytes, StandardOpenOption.CREATE_NEW);
-            return staged;
-        } catch (IOException | RuntimeException failure) {
-            Files.deleteIfExists(staged);
-            throw failure;
-        }
+        writeNew(staged, bytes);
+        return staged;
     }
 
     Path commit(Path staged, byte[] expectedHash, String contents, BooleanSupplier beginCommit) throws IOException {
@@ -106,22 +101,31 @@ class ConfigFileStore {
 
     private void writeBackup(byte[] original, Path backup) throws IOException {
         Path candidate = sibling(".stage-");
-        boolean created = false;
+        writeNew(candidate, original);
         try {
-            try (OutputStream output = Files.newOutputStream(candidate, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-                created = true;
-                output.write(original);
-            }
             publishBackup(candidate, backup);
-        } catch (IOException failure) {
-            if (created) {
-                try {
-                    delete(candidate);
-                } catch (IOException cleanupFailure) {
-                    failure.addSuppressed(cleanupFailure);
-                }
-            }
+        } catch (IOException | RuntimeException failure) {
+            cleanupOwned(candidate, failure);
             throw failure;
+        }
+    }
+
+    private void writeNew(Path candidate, byte[] bytes) throws IOException {
+        // A failed exclusive creation conveys no ownership and must never enter cleanup.
+        OutputStream created = Files.newOutputStream(candidate, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        try (OutputStream output = created) {
+            output.write(bytes);
+        } catch (IOException | RuntimeException failure) {
+            cleanupOwned(candidate, failure);
+            throw failure;
+        }
+    }
+
+    private void cleanupOwned(Path candidate, Exception failure) {
+        try {
+            delete(candidate);
+        } catch (IOException cleanupFailure) {
+            failure.addSuppressed(cleanupFailure);
         }
     }
 
