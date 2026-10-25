@@ -3,6 +3,7 @@ package io.github.stealingdapenta.enchantxp.administration;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -87,13 +88,17 @@ class ConfigFileStore {
         byte[] original = unchanged(expectedHash);
         retainLatestBackup();
         Path backup = sibling(".backup-");
-        try {
-            Files.write(backup, original, StandardOpenOption.CREATE_NEW);
+        boolean created = false;
+        try (OutputStream output = Files.newOutputStream(backup, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            created = true;
+            output.write(original);
         } catch (IOException failure) {
-            try {
-                Files.deleteIfExists(backup);
-            } catch (IOException cleanupFailure) {
-                failure.addSuppressed(cleanupFailure);
+            if (created) {
+                try {
+                    Files.deleteIfExists(backup);
+                } catch (IOException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
             }
             throw failure;
         }
