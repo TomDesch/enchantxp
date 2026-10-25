@@ -152,6 +152,35 @@ class ConfigEditorTest {
     }
 
     @Test
+    void reentrantResumeKeepsItsNewerViewWhenOuterOpenIsCancelledOrThrows() {
+        for (boolean throwsAfterResume : new boolean[]{false, true}) {
+            List<ConfigEditor.Draft> attempted = new ArrayList<ConfigEditor.Draft>();
+            when(fixture.player.openInventory(any(Inventory.class))).thenAnswer(call -> {
+                Inventory inventory = call.getArgument(0);
+                ConfigEditor.Draft draft = ((ConfigEditor.EditorHolder) inventory.getHolder()).draft;
+                attempted.add(draft);
+                if (attempted.size() == 1) {
+                    assertTrue(editor.resume(fixture.player));
+                    if (throwsAfterResume) {
+                        throw new IllegalStateException("Outer open failed after resuming");
+                    }
+                    return null;
+                }
+                fixture.view = fixture.new View(inventory);
+                return fixture.view;
+            });
+            request("config");
+            worker();
+            fixture.tick();
+            assertEquals(2, attempted.size());
+            assertSame(attempted.get(0), attempted.get(1));
+            assertTrue(editor.current(attempted.get(1)));
+            assertSame(draft().view, fixture.view.getTopInventory().getHolder());
+            fixture.player.closeInventory();
+        }
+    }
+
+    @Test
     void reentrantInvalidationDuringEditorOpenCannotPublishAnInertEditor() {
         List<ConfigEditor.Draft> attempted = new ArrayList<ConfigEditor.Draft>();
         when(fixture.player.openInventory(any(Inventory.class))).thenAnswer(call -> {

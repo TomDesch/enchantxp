@@ -84,7 +84,7 @@ final class ConfigEditor implements Listener {
             }, LIFETIME_TICKS);
             show(draft);
         } catch (RuntimeException failure) {
-            if (drafts.get(draft.owner) == draft) {
+            if (drafts.get(draft.owner) == draft && draft.view == null) {
                 discard(player);
             }
             throw failure;
@@ -367,7 +367,7 @@ final class ConfigEditor implements Listener {
             if (!permitted(draft) || draft.view != holder || opened == null ||
                     opened.getTopInventory().getHolder() != holder ||
                     draft.player.getOpenInventory().getTopInventory().getHolder() != holder) {
-                if (drafts.get(draft.owner) == draft) {
+                if (drafts.get(draft.owner) == draft && draft.view == holder) {
                     discard(draft.player);
                 }
                 if (draft.player.getOpenInventory().getTopInventory().getHolder() == holder) {
