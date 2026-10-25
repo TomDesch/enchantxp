@@ -135,8 +135,10 @@ items: {}
 
 # Shared by operator instructions and explicitly marked table lore.
 # Kept outside ui: changing only formatting never clears inherited stage lore.
-# Colors accept only & color/formatting codes; '' leaves that role uncolored.
-# Prefix accepts single-line text, no placeholders; '' hides the prefix.
+# Colors accept only & color/formatting codes; '' resets that role to white.
+# Formatting-only role codes start from white rather than inheriting a label's color.
+# Prefix accepts at most 16 visible characters, no placeholders; '' hides it.
+# Valid legacy & color/formatting codes do not count toward the visible limit.
 lore-style:
   action-prefix: "\u00bb "
   action-color: '&a'

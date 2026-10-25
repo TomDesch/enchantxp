@@ -82,6 +82,9 @@ final class ConfigFields {
 
         String prompt() {
             String setting = name + " (" + path + "): ";
+            if (path.startsWith(LoreStyle.PATH + ".")) {
+                return textPrompt(name, true) + " " + help;
+            }
             switch (kind) {
                 case INTEGER:
                     return setting + "Enter a whole number from " + display((int) minimum) + " to " + display((int) maximum) + " inclusive." + (sentinel == null ? "" : " Or " + sentinel + " to disable the configured ceiling.") + unitInputHelp() + " " + help;
@@ -299,8 +302,8 @@ final class ConfigFields {
     private static String help(String path) {
         if (path.startsWith(LoreStyle.PATH + ".")) {
             return path.endsWith("action-prefix")
-                    ? "Shared by operator instructions and table lore marked {action}. Use <blank> for no prefix. No placeholders."
-                    : "Shared lore role. Enter only & color or formatting codes, for example &b. Use <blank> for no color.";
+                    ? "Shared by operator instructions and table lore marked {action}. Maximum " + LoreStyle.MAX_PREFIX_LENGTH + " visible characters; & color codes do not count. Use <blank> for no prefix. No placeholders."
+                    : "Shared lore role. Enter only & color or formatting codes, for example &b. Blank resets to white; formatting-only codes start from white.";
         }
         if (path.startsWith(MESSAGES)) {
             return messageCopy(path.substring(MESSAGES.length()))[1];

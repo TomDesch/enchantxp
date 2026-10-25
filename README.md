@@ -40,7 +40,9 @@ Use `/enchantxp config` or edit `plugins\EnchantXP\config.yml` and run `/enchant
 - Item limits change maximum enchantment levels, not XP prices: Diamond Sword -> Sharpness -> 10. A cap of 0 disables that option; resetting removes the item override and inherits the enchantment or vanilla cap.
 - Text supports `&` colors and formatting, such as `&5`, `&6`, `&l`, `&o` and `&r`. Prompts say when `<blank>` is allowed; type `cancel` to return.
 
-Menu appearance -> Lore formatting controls `lore-style.action-prefix` (default `\u00bb `, displayed as a right-pointing double angle) and the action, label, number and text colors. An empty prefix hides just the symbol. Table lore uses explicit `{action}`, `{label}`, `{number}` and `{text}` roles; unmarked custom prose is left alone. Formatting-only edits do not create `ui` overrides or clear inherited lore.
+Menu appearance -> Lore formatting controls `lore-style.action-prefix` (default `\u00bb `, displayed as a right-pointing double angle) and the action, label, number and text colors. The prefix allows at most 16 visible characters; valid legacy color codes do not count. An empty prefix hides just the symbol. Empty role colors reset to white; formatting-only roles start from white. Table lore uses explicit `{action}`, `{label}`, `{number}` and `{text}` roles; unmarked custom prose is left alone. Formatting-only edits do not create `ui` overrides or clear inherited lore.
+
+Right clicking an individual UI lore field restores an explicit copy of its shipped lines; Clear all lines intentionally keeps it empty. Use default appearance resets both menu overrides and shared lore formatting. Use default icon resets only that icon.
 
 Existing explicit table lore stays unchanged when upgrading. To adopt the new presentation, compare your intended defaults with packaged `config.yml` and replace only matching old shipped lines with their role-marked equivalents, including `ui.icons.instructions.lore`. Keep customized wording. Command help now sends its heading and each permitted command separately; `{commands}` remains permission-filtered.
 

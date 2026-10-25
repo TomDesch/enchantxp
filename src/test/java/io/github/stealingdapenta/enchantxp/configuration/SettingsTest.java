@@ -27,6 +27,56 @@ import static org.mockito.Mockito.*;
 
 class SettingsTest {
     @Test
+    void blankAndFormattingOnlyRolesResetInheritedColorsInEditorAndTable() throws Exception {
+        for (String role : Arrays.asList("", "&l")) {
+            String expected = ChatColor.RESET + ChatColor.translateAlternateColorCodes('&', role);
+            YamlConfiguration document = yaml("base-xp: 25\nmax-cost: -1\n");
+            document.set("lore-style.number-color", role);
+            document.set("lore-style.action-color", role);
+            document.set("lore-style.action-prefix", "");
+            document.set("ui.option-lore", Arrays.asList("{label}Value: {number}10", "{number}10", "{action}Choose"));
+            List<String> table = Settings.read(document).text().lore("ui.option-lore", Collections.emptyMap());
+            assertEquals(Arrays.asList(ChatColor.AQUA + "Value: " + expected + "10", expected + "10", expected + "Choose"), table);
+            List<String> editor = LoreStyle.read(document).editorLines(Arrays.asList(LoreStyle.number("Value", "10"), "{number}10", LoreStyle.action("Choose")));
+            assertTrue(editor.get(0).endsWith(expected + "10"));
+            assertEquals(expected + "10", editor.get(1));
+            assertEquals(expected + "Choose", editor.get(2));
+            document.set("lore-style.label-color", role);
+            document.set("lore-style.text-color", role);
+            assertEquals(expected + "Value: " + expected + "literal {action}&6",
+                    LoreStyle.read(document).editorLines(Collections.singletonList(LoreStyle.info("Value", "literal {action}&6"))).get(0));
+            document.set("ui.option-lore", Arrays.asList("&a{label}Label: {text}plain", "{label}Label", "{text}plain"));
+            assertEquals(Arrays.asList(ChatColor.GREEN + expected + "Label: " + expected + "plain", expected + "Label", expected + "plain"),
+                    Settings.read(document).text().lore("ui.option-lore", Collections.emptyMap()));
+            assertEquals(Arrays.asList(expected + "Label", expected + "plain"),
+                    LoreStyle.read(document).editorLines(Arrays.asList("{label}Label", "{text}plain")));
+            document.set("lore-style.action-prefix", "&c! ");
+            document.set("ui.option-lore", Collections.singletonList("{action}Choose"));
+            String action = expected + ChatColor.RED + "! " + expected + "Choose";
+            assertEquals(Collections.singletonList(action), Settings.read(document).text().lore("ui.option-lore", Collections.emptyMap()));
+            assertEquals(Collections.singletonList(action),
+                    LoreStyle.read(document).editorLines(Collections.singletonList(LoreStyle.action("Choose"))));
+        }
+    }
+
+    @Test
+    void actionPrefixBoundsCountVisibleCharactersRatherThanValidColorCodes() throws Exception {
+        YamlConfiguration document = yaml("");
+        document.set("lore-style.action-prefix", "&a12345678&l12345678");
+        assertNotNull(LoreStyle.read(document));
+        assertEquals(2, LoreStyle.read(document).editorLines(Collections.singletonList(
+                LoreStyle.action("Left click to choose an enchantment from this list."))).size());
+        document.set("lore-style.action-prefix", "12345678901234567");
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> LoreStyle.read(document));
+        assertTrue(failure.getMessage().contains("lore-style.action-prefix"));
+        assertTrue(failure.getMessage().contains("16 visible"));
+        document.set("lore-style.action-prefix", "&q123456789012345");
+        assertThrows(IllegalArgumentException.class, () -> LoreStyle.read(document));
+        document.set("lore-style.action-prefix", "");
+        assertNotNull(LoreStyle.read(document));
+    }
+
+    @Test
     void prefixOnlyOverridePreservesInheritedStageAndInputLoreAndSupportsBlankPrefix() throws Exception {
         for (String prefix : Arrays.asList("Go: ", "")) {
             YamlConfiguration document = yaml("base-xp: 25\nmax-cost: -1\n");
@@ -73,11 +123,6 @@ class SettingsTest {
         assertTrue(wrapped.contains(ChatColor.GRAY + "" + ChatColor.AQUA + "Placeholders:"));
         assertTrue(wrapped.contains(ChatColor.GRAY + "- {action}"));
         assertTrue(wrapped.contains(ChatColor.GRAY + "" + ChatColor.AQUA + "Text: " + ChatColor.GRAY + "{action}&6{cost}"));
-        YamlConfiguration longPrefix = yaml("");
-        longPrefix.set("lore-style.action-prefix", String.join("", Collections.nCopies(60, ">")));
-        List<String> longLines = LoreStyle.read(longPrefix).editorLines(Collections.singletonList(LoreStyle.action("Do it")));
-        assertFalse(longLines.isEmpty());
-        assertTrue(longLines.size() <= 5);
     }
 
     @Test

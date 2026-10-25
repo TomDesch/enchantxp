@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
+import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
@@ -803,7 +804,7 @@ class ConfigEditorTest {
     }
 
     @Test
-    void loreEditorSupportsBlankLinesDeletionAndExplicitEmptyWhileResetRestoresOmission() throws Exception {
+    void loreEditorSupportsBlankLinesDeletionAndExplicitEmptyWhileResetCopiesShippedLore() throws Exception {
         open();
         draft().route = "icon:fill";
         editor.resume(fixture.player);
@@ -823,7 +824,8 @@ class ConfigEditorTest {
         assertTrue(draft().document.getStringList("ui.icons.fill.lore").isEmpty());
         click(ConfigEditor.BACK, ClickType.LEFT);
         click(findSlot("Lore"), ClickType.RIGHT);
-        assertFalse(draft().document.contains("ui.icons.fill.lore", true));
+        assertTrue(draft().document.contains("ui.icons.fill.lore", true));
+        assertEquals(Collections.emptyList(), draft().document.getStringList("ui.icons.fill.lore"));
         assertFalse(draft().document.contains("ui.icons.confirm", true));
     }
 
@@ -1039,11 +1041,55 @@ class ConfigEditorTest {
     }
 
     @Test
+    void individualUiLoreResetRestoresShippedListWhileClearStillMeansEmpty() {
+        open();
+        for (String[] target : new String[][]{{"icon:instructions", "Lore", "ui.icons.instructions.lore"},
+                {"ui", "Level choice lore", "ui.option-lore"}}) {
+            draft().document.set(target[2], Arrays.asList("Custom"));
+            editor.navigate(draft(), target[0]);
+            clickNamed(target[1]);
+            clickNamed("Clear all lines");
+            assertEquals(Collections.emptyList(), draft().document.getStringList(target[2]));
+            assertTrue(Settings.read(draft().document).text().lore(target[2], Collections.emptyMap()).isEmpty());
+            editor.navigate(draft(), target[0]);
+            click(findSlot(target[1]), ClickType.RIGHT);
+            assertTrue(draft().document.contains(target[2], true));
+            assertEquals(ConfigValues.defaults().getStringList(target[2]), draft().document.getStringList(target[2]));
+            assertFalse(Settings.read(draft().document).text().lore(target[2], Collections.emptyMap()).isEmpty());
+            String help = ChatColor.stripColor(String.join(" ", fixture.view.getTopInventory().getItem(findSlot(target[1])).getItemMeta().getLore()));
+            assertTrue(help.contains("shipped lore"));
+            assertTrue(help.contains("Right click to reset to default."));
+        }
+    }
+
+    @Test
+    void wholeAppearanceResetOwnsSharedStyleButIndividualIconResetDoesNot() {
+        open();
+        draft().document.set("ui.rows", 3);
+        draft().document.set("ui.icons.back.name", "Custom");
+        draft().document.set("lore-style.action-prefix", "Go: ");
+        draft().document.set("sounds.enabled", false);
+        editor.navigate(draft(), "icon:back");
+        clickNamed("Use default icon");
+        assertFalse(draft().document.contains("ui.icons.back", true));
+        assertEquals("Go: ", draft().document.getString("lore-style.action-prefix"));
+        assertEquals(3, draft().document.getInt("ui.rows"));
+        editor.navigate(draft(), "ui");
+        clickNamed("Use default appearance");
+        assertFalse(draft().document.contains("ui", true));
+        assertFalse(draft().document.contains("lore-style", true));
+        assertFalse(draft().document.getBoolean("sounds.enabled"));
+    }
+
+    @Test
     void sharedLoreFormattingCanBeEditedWithoutCreatingUiOverridesAndAppliesToFooters() {
         open();
         clickNamed("Menu appearance");
         clickNamed("Lore formatting");
         clickNamed("Action prefix");
+        verify(fixture.player).sendMessage(contains("16 visible characters"));
+        input("12345678901234567");
+        verify(fixture.player).sendMessage(contains("at most 16 visible characters"));
         input("Go: ");
         assertEquals("Go: ", draft().document.getString("lore-style.action-prefix"));
         assertFalse(draft().document.contains("ui", true));
@@ -1059,7 +1105,7 @@ class ConfigEditorTest {
         assertFalse(String.join("", footer).contains("{action}"));
         clickNamed("Action color");
         input("not a color");
-        verify(fixture.player).sendMessage(contains("only & color"));
+        verify(fixture.player).sendMessage(contains("lore-style.action-color must contain only & color"));
         input("&d");
         assertTrue(fixture.view.getTopInventory().getItem(ConfigEditor.DISCARD).getItemMeta().getLore().get(0).contains(ChatColor.LIGHT_PURPLE.toString()));
     }

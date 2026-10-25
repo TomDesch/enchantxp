@@ -202,8 +202,9 @@ final class EditorPages {
             category(result, draft, "Lore formatting", Material.SIGN, "Shared instruction prefix and role colors for operator and table lore.", "lore-style");
             category(result, draft, "Headings", Material.SIGN, "Titles for each enchanting step.", "titles");
             category(result, draft, "Buttons and decorations", Material.ITEM_FRAME, "Item, variant, display name and lore.", "icons");
-            result.add(new Entry(Material.BUCKET, "Use default appearance", Arrays.asList("Remove all menu appearance overrides, including height.", "Default stage lore will also be restored.", LoreStyle.action("Left click to restore default appearance.")), () -> {
+            result.add(new Entry(Material.BUCKET, "Use default appearance", Arrays.asList("Remove all menu appearance overrides, including height.", "Restore shipped lore, shared prefix and role colors.", LoreStyle.action("Left click to restore default appearance.")), () -> {
                 draft.document.set("ui", null);
+                draft.document.set(LoreStyle.PATH, null);
                 editor.show(draft);
             }, null));
         } else if (route.equals("lore-style")) {
@@ -262,7 +263,7 @@ final class EditorPages {
 
     private ConfigFields.Field capField(String path, String name) {
         return ConfigFields.integer(path, name,
-                                    "Maximum enchantment level for this item, not XP price. For example, Diamond Sword -> Sharpness -> 10. 0 disables this option. This replaces the enchantment cap. Reset inherits the enchantment or vanilla cap. BOOK covers both book types unless ENCHANTED_BOOK has its own cap. Global disabled status, legality, price and permissions still apply.",
+                                    "Maximum enchantment level for this item, not XP price. For example, Diamond Sword -> Sharpness -> 10. 0 disables this option. This replaces the enchantment cap. Reset inherits the applicable fallback cap. BOOK covers both book types unless ENCHANTED_BOOK has its own cap. Global disabled status, legality, price and permissions still apply.",
                                     0, EnchantPolicy.MAX_LEVEL);
     }
 
@@ -327,11 +328,7 @@ final class EditorPages {
         if (field.path.startsWith(ITEM_PATH)) {
             lore.add("ENCHANTED_BOOK caps win over BOOK caps.");
         }
-        if (field.path.equals("base-xp") || field.path.equals("max-cost")) {
-            lore.add("Reset restores the shipped value.");
-        } else {
-            lore.add("Reset removes this override and uses its inherited fallback.");
-        }
+        lore.add(resetHelp(field));
         lore.add(LoreStyle.action(field.kind == ConfigFields.Kind.BOOLEAN ? "Left click to toggle." : "Left click to edit."));
         lore.add(LoreStyle.action("Right click to reset to default."));
         return lore;
@@ -378,10 +375,43 @@ final class EditorPages {
         if (field.path.equals("base-xp") || field.path.equals("max-cost")) {
             draft.document.set(field.path, ConfigValues.defaults()
                                                        .get(field.path));
+        } else if (isUiLore(field)) {
+            draft.document.set(field.path, new ArrayList<>(ConfigValues.defaults().getStringList(field.path)));
         } else {
             draft.document.set(field.path, null);
         }
         editor.show(draft);
+    }
+
+    private static boolean isUiLore(ConfigFields.Field field) {
+        return field.kind == ConfigFields.Kind.LINES && field.path.startsWith("ui.");
+    }
+
+    private static String resetHelp(ConfigFields.Field field) {
+        if (isUiLore(field)) {
+            return "Reset restores a copy of the shipped lore.";
+        }
+        if (field.path.startsWith("items.ENCHANTED_BOOK.")) {
+            return "Reset removes this item override; BOOK then the enchantment or vanilla cap applies.";
+        }
+        if (field.path.startsWith(ITEM_PATH)) {
+            return "Reset removes this item override and inherits the enchantment or vanilla cap.";
+        }
+        if (field.path.startsWith(ENCHANTMENT_PATH)) {
+            if (field.path.contains(".levels.")) {
+                return "Reset removes this override and calculates the total from the current starting price.";
+            }
+            if (field.path.endsWith(".base-xp")) {
+                return "Reset removes this override and uses the global starting price.";
+            }
+            if (field.path.endsWith(".max-level")) {
+                return "Reset removes this override and uses the vanilla level cap.";
+            }
+            if (field.path.endsWith(".enabled")) {
+                return "Reset removes this override and enables purchases, subject to the other rules.";
+            }
+        }
+        return "Reset restores the shipped setting.";
     }
 
     private String valueLine(ConfigFields.Field field, Object value) {

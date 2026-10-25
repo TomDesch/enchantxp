@@ -17,6 +17,7 @@ import org.bukkit.configuration.ConfigurationSection;
 /** Explicit lore roles shared by table templates and operator pages, never inferred from prose. */
 public final class LoreStyle {
     public static final String PATH = "lore-style";
+    public static final int MAX_PREFIX_LENGTH = 16;
     private static final String ACTION_MARKER = "{action}";
     private static final int WRAP_WIDTH = 48;
     private static final Pattern MARKER = Pattern.compile("\\{(action|label|number|text)\\}");
@@ -44,10 +45,16 @@ public final class LoreStyle {
             if (!(value instanceof String)) {
                 throw new IllegalArgumentException(PATH + "." + key + " must be a string");
             }
-            settings.put(key, ChatColor.translateAlternateColorCodes('&', validateSetting(key, (String) value)));
+            String translated = ChatColor.translateAlternateColorCodes('&', validateSetting(key, (String) value));
+            settings.put(key, key.equals("action-prefix") ? translated : independentColor(translated));
         }
         Map<String, String> roles = new HashMap<>();
-        roles.put("action", settings.get("action-color") + settings.get("action-prefix"));
+        String actionPrefix = settings.get("action-prefix");
+        String action = settings.get("action-color") + actionPrefix;
+        if (actionPrefix.indexOf(ChatColor.COLOR_CHAR) >= 0) {
+            action += settings.get("action-color");
+        }
+        roles.put("action", action);
         roles.put("label", settings.get("label-color"));
         roles.put("number", settings.get("number-color"));
         roles.put("text", settings.get("text-color"));
@@ -59,10 +66,24 @@ public final class LoreStyle {
             if (value.contains("{") || value.contains("}") || value.contains("\n") || value.contains("\r")) {
                 throw new IllegalArgumentException(PATH + "." + key + " must be single-line text without placeholders");
             }
+            String visible = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', value));
+            if (visible.codePointCount(0, visible.length()) > MAX_PREFIX_LENGTH) {
+                throw new IllegalArgumentException(PATH + "." + key + " must contain at most " + MAX_PREFIX_LENGTH + " visible characters (color codes do not count)");
+            }
         } else if (!value.matches("(?i)(?:&[0-9a-fk-or])*")) {
             throw new IllegalArgumentException(PATH + "." + key + " must contain only & color or formatting codes");
         }
         return value;
+    }
+
+    private static String independentColor(String codes) {
+        for (int index = 0; index + 1 < codes.length(); index += 2) {
+            ChatColor color = ChatColor.getByChar(codes.charAt(index + 1));
+            if (color != null && (color.isColor() || color == ChatColor.RESET)) {
+                return codes;
+            }
+        }
+        return ChatColor.RESET + codes;
     }
 
     static Set<String> markers() {
@@ -96,7 +117,8 @@ public final class LoreStyle {
         List<String> result = new ArrayList<>();
         for (String template : templates) {
             boolean action = template.startsWith(ACTION_MARKER);
-            String prefix = roles.get("text") + (action ? roles.get("action") : "");
+            String base = startsWithResetRole(template) ? "" : roles.get("text");
+            String prefix = base + (action ? roles.get("action") : "");
             String remaining = action ? template.substring(ACTION_MARKER.length()) : editorFormat(template);
             int width = Math.max(1, WRAP_WIDTH - ChatColor.stripColor(prefix).length());
             while (ChatColor.stripColor(remaining).length() > width) {
@@ -108,6 +130,11 @@ public final class LoreStyle {
             result.add(prefix + remaining);
         }
         return result;
+    }
+
+    private boolean startsWithResetRole(String template) {
+        Matcher marker = MARKER.matcher(template);
+        return marker.lookingAt() && roles.get(marker.group(1)).startsWith(ChatColor.RESET.toString());
     }
 
     private String editorFormat(String template) {
