@@ -50,7 +50,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public final class ServerFixture {
-    public static final String LEGACY_PRICING = "bookshelf-pricing:\n  enabled: false\n";
+    public static final String LEGACY_PRICING = "config-version: 1\nbookshelf-pricing:\n  enabled: false\n";
     private static final Server SERVER = mock(Server.class);
     public static final Enchantment SHARPNESS = new TestEnchantment(16, "DAMAGE_ALL", 5);
     public static final Enchantment SMITE = new TestEnchantment(17, "DAMAGE_UNDEAD", 5);

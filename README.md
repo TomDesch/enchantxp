@@ -98,6 +98,13 @@ and in-memory metadata without exposing production state.
 ## Configuration and reload
 
 `plugins\EnchantXP\config.yml` is created once and never rewritten by reload.
+The required integer `config-version: 1` identifies this build's configuration schema,
+independently of plugin SemVer or save count. Missing, mistyped or incompatible versions
+fail startup; a failed reload keeps the healthy snapshot and never replaces your file.
+For an upgrade, preserve the old bytes, compare the new packaged defaults and release
+instructions, adapt incompatible keys explicitly, then set the documented schema.
+The editor preserves the schema; only incompatible schema changes increment it.
+Future releases do not promise unconditional compatibility.
 Edit it, then run `/enchantxp reload` as console or with `enchantxp.reload`
 (default op). Other arguments show usage; permitted senders can tab-complete
 `config` and `reload` according to their permissions. Completion is case-insensitive;
@@ -159,8 +166,12 @@ records the specific cause. A successful reload invalidates old menus and pendin
 work before applying the new snapshot; reopen the table. In-flight callbacks
 cannot apply after disable. Initial invalid configuration still disables the plugin.
 
-- Required `base-xp` and `max-cost` are whole raw XP values in 1..1000000;
-  base must not exceed max-cost. Old explicitly configured values stay unchanged.
+- Required `base-xp` is a whole raw XP value in 1..1000000.
+  `max-cost` accepts 1..1000000, or `-1` to disable the configured ceiling.
+  With a finite ceiling, base must not exceed it and expensive options are hidden.
+  With `-1`, all legal/permitted choices with a charge in 1..2147483647 raw XP
+  are eligible; that technical integer bound prevents overflow, not a tuning cap.
+  Level caps still apply, with a hard bound of 255 (70 is valid).
 - Price precedence is exact cumulative `enchantments.NAME.levels.'N'`, then
   explicitly configured `enchantments.NAME.base-xp * N * N`, then global
   `base-xp * N * N`. Missing enchantment bases, even deleted shipped special

@@ -62,6 +62,33 @@ import static org.mockito.Mockito.*;
 
 class TableMenusTest {
     @Test
+    void fortuneSeventyIsReachableAcrossPagesWithoutConfiguredCeilingButFiniteCapFiltersPrices() throws Exception {
+        for (int cap : new int[]{-1, 1000000}) {
+            fixture = new ServerFixture("config-version: 1\nbase-xp: 10000\nmax-cost: " + cap +
+                    "\nbookshelf-pricing:\n  zero-shelf-penalty-percent: 50\n" +
+                    "enchantments:\n  LOOT_BONUS_BLOCKS:\n    base-xp: 25000\n    max-level: 70\n");
+            fixture.items.put(0, new ItemStack(Material.BOOK));
+            fixture.open();
+            Enchantment fortune = Enchantment.getByName("LOOT_BONUS_BLOCKS");
+            int slot = fixture.menu().choices.entrySet().stream()
+                    .filter(entry -> entry.getValue().equals(fortune)).findFirst().get().getKey();
+            fixture.click(slot, ClickType.LEFT);
+            fixture.tick();
+            Set<Integer> levels = new HashSet<>();
+            int pages = fixture.menu().pages;
+            for (int page = 0; page < pages; page++) {
+                levels.addAll(fixture.menu().levels.values());
+                if (page + 1 < pages) {
+                    fixture.click(fixture.menu().layout.next, ClickType.LEFT);
+                    fixture.tick();
+                }
+            }
+            assertEquals(cap == -1 ? 70 : 5, levels.size());
+            assertEquals(cap == -1, levels.contains(70));
+        }
+    }
+
+    @Test
     void everyHeightPaginatesAllBookTypesAnd255LevelsWithGlobalSortAndSafeSlots() throws Exception {
         for (int rows = 3; rows <= 6; rows++) {
             String config = ServerFixture.LEGACY_PRICING + "base-xp: 1\nmax-cost: 1000000\nui:\n  rows: " + rows +

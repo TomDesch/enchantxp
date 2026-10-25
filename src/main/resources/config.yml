@@ -1,7 +1,11 @@
-# Set the starting XP price here (1..1000000). Higher levels cost more.
+# Build-defined schema, not the plugin version or a save counter. See README before upgrading.
+config-version: 1
+
+# Set the global fallback starting XP price here (1..1000000).
 # A level's total value is its starting price x level squared.
 # Upgrades cost the difference between the old and new level at today's prices.
-# max-cost limits the upgrade charge, not the total value.
+# max-cost hides options whose upgrade charge exceeds the configured ceiling.
+# -1 disables that ceiling; legal levels 1..255 still need a representable raw-XP charge.
 # Edit in-game with /enchantxp config, or edit this file and /enchantxp reload.
 base-xp: 10000
 

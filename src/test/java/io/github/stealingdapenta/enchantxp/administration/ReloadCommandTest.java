@@ -124,7 +124,7 @@ class ReloadCommandTest {
             Object previous = fixture.menuIdentity();
             fixture.click(fixture.confirmSlot(), ClickType.LEFT);
             Runnable pendingConfirm = fixture.tasks.remove();
-            if (invalid == null) { Files.delete(file); } else { write(invalid); }
+            if (invalid == null) { Files.delete(file); } else { write("config-version: 1\n" + invalid); }
             request(console);
             complete();
             assertSame(previous, fixture.menuIdentity());
@@ -145,7 +145,7 @@ class ReloadCommandTest {
             Object old = fixture.menuIdentity();
             fixture.click(fixture.confirmSlot(), ClickType.LEFT);
             Runnable confirm = fixture.tasks.remove();
-            String candidate = "base-xp: 7\nmax-cost: 1000000\n" + extra;
+            String candidate = "config-version: 1\nbase-xp: 7\nmax-cost: 1000000\n" + extra;
             write(candidate);
             request(console);
             complete();
@@ -216,7 +216,7 @@ class ReloadCommandTest {
         Object old = fixture.menuIdentity();
         fixture.click(fixture.confirmSlot(), ClickType.LEFT);
         Runnable confirmation = fixture.tasks.remove();
-        write("base-xp: 10\nmax-cost: 1000000\nui:\n  rows: 3\n");
+        write("config-version: 1\nbase-xp: 10\nmax-cost: 1000000\nui:\n  rows: 3\n");
         request(fixture.player);
         fixture.asyncTasks.remove().run();
         when(fixture.player.hasPermission(ReloadCommand.PERMISSION)).thenReturn(false);
@@ -285,7 +285,7 @@ class ReloadCommandTest {
     @Test
     void disableDuringMenuCloseCannotPublishReplacementOrReportSuccess() throws Exception {
         fixture.open();
-        write("base-xp: 10\nmax-cost: 1000000\nui:\n  rows: 3\n");
+        write("config-version: 1\nbase-xp: 10\nmax-cost: 1000000\nui:\n  rows: 3\n");
         // Avoid a recursive close on shutdown, just as a native close event replaces the view.
         doAnswer(call -> {
             Inventory external = mock(Inventory.class);
@@ -312,6 +312,24 @@ class ReloadCommandTest {
         when(Bukkit.getServer().isPrimaryThread()).thenReturn(true);
         fixture.tick();
         verify(console).sendMessage(contains("Configuration reloaded"));
+    }
+
+    @Test
+    void missingAndIncompatibleSchemasKeepHealthySnapshotAndExactOperatorFile() throws Exception {
+        for (String version : new String[]{"", "config-version: 2\n", "config-version: '1'\n"}) {
+            String invalid = version + "base-xp: 1\nmax-cost: -1\n";
+            write(invalid);
+            request(console);
+            complete();
+            assertArrayEquals(invalid.getBytes(StandardCharsets.UTF_8), Files.readAllBytes(file));
+            int balance = Experience.total(fixture.level, fixture.progress);
+            fixture.confirmPage();
+            fixture.click(fixture.confirmSlot(), ClickType.LEFT);
+            fixture.tick();
+            assertEquals(balance - 100, Experience.total(fixture.level, fixture.progress));
+            fixture.items.get(0).removeEnchantment(ServerFixture.SHARPNESS);
+        }
+        verify(console, times(3)).sendMessage(contains("Previous settings kept"));
     }
 
     private void request(CommandSender sender) {

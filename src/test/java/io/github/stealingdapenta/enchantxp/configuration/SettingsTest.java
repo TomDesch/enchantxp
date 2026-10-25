@@ -25,6 +25,19 @@ import static org.mockito.Mockito.*;
 
 class SettingsTest {
     @Test
+    void schemaIsRequiredTypedAndBuildDefinedWithoutChangingOperatorDocument() throws Exception {
+        for (Object version : Arrays.asList(null, "1", 1.0, true, 0, 2)) {
+            YamlConfiguration document = yaml("base-xp: 25\nmax-cost: 1000000\n");
+            document.set("config-version", version);
+            String before = document.saveToString();
+            IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> Settings.read(document));
+            assertTrue(failure.getMessage().contains("config-version"));
+            assertTrue(failure.getMessage().contains("upgrade"));
+            assertEquals(before, document.saveToString());
+        }
+    }
+
+    @Test
     void deletingPackagedFortuneBaseOrSectionFallsBackToOperatorGlobal() throws Exception {
         new ServerFixture();
         Enchantment fortune = Enchantment.getByName("LOOT_BONUS_BLOCKS");

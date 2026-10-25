@@ -10,6 +10,7 @@ import io.github.stealingdapenta.enchantxp.presentation.MenuText;
 import org.bukkit.configuration.ConfigurationSection;
 
 public final class Settings {
+    private static final int CONFIG_VERSION = 1;
     private final Prices prices;
     private final EnchantPolicy policy;
     private final MenuText text;
@@ -30,6 +31,11 @@ public final class Settings {
     }
 
     public static Settings read(ConfigurationSection config) {
+        if (!(config.get("config-version") instanceof Integer) ||
+                ((Integer) config.get("config-version")) != CONFIG_VERSION) {
+            throw new IllegalArgumentException("config-version must be the integer " + CONFIG_VERSION +
+                    ". Preserve your file and follow the README schema upgrade policy before retrying.");
+        }
         Prices prices = Prices.read(config);
         EnchantPolicy policy = EnchantPolicy.read(config);
         int rows = ConfigValues.integer(ConfigValues.value(config, ConfigValues.defaults(), "ui.rows"),

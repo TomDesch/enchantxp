@@ -13,6 +13,23 @@ import static org.mockito.Mockito.*;
 
 class PricesTest {
     @Test
+    void disabledConfiguredCeilingStillRejectsUnrepresentableRawXpAndInvalidLevels() throws Exception {
+        Prices prices = Prices.read(yaml("base-xp: 25000\nmax-cost: -1\n"));
+        assertEquals(122500000, prices.cost(70));
+        assertTrue(prices.offersUpgrade(null, 0, 70));
+        assertTrue(prices.accepts(Integer.MAX_VALUE));
+        assertFalse(prices.accepts((long) Integer.MAX_VALUE + 1));
+        assertFalse(prices.offers(256));
+        Prices expensive = Prices.read(yaml("base-xp: 1000000\nmax-cost: -1\n"));
+        assertFalse(expensive.offers(255));
+        assertTrue(expensive.offersUpgrade(null, 254, 255));
+        for (String invalid : new String[]{"-2", "0", "'-1'", "1.5"}) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    Prices.read(yaml("base-xp: 1\nmax-cost: " + invalid + "\n")));
+        }
+    }
+
+    @Test
     void bundledDefaultsProduceDocumentedQuadraticCosts() {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new InputStreamReader(
                 getClass().getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));

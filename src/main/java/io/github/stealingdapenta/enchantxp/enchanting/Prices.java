@@ -24,8 +24,11 @@ public final class Prices {
 
     public static Prices read(ConfigurationSection config) {
         int base = boundedInteger(config.get("base-xp"), "base-xp");
-        int maximum = boundedInteger(config.get("max-cost"), "max-cost");
-        if (base > maximum) {
+        int maximum = ConfigValues.integer(config.get("max-cost"), "max-cost", -1, HARD_MAX_COST);
+        if (maximum == 0) {
+            throw new IllegalArgumentException("max-cost must be -1 (no configured ceiling) or 1..1000000");
+        }
+        if (maximum != -1 && base > maximum) {
             throw new IllegalArgumentException("base-xp must not exceed max-cost");
         }
         Map<String, Integer> bases = new HashMap<String, Integer>();
@@ -90,13 +93,13 @@ public final class Prices {
 
     public int checked(long cost) {
         if (!accepts(cost)) {
-            throw new IllegalArgumentException("This choice exceeds max-cost");
+            throw new IllegalArgumentException("This choice exceeds max-cost or the representable raw-XP charge");
         }
         return (int) cost;
     }
 
     public boolean accepts(long cost) {
-        return cost >= 1 && cost <= maximum;
+        return cost >= 1 && cost <= Integer.MAX_VALUE && (maximum == -1 || cost <= maximum);
     }
 
     public boolean offers(int level) {
@@ -105,7 +108,7 @@ public final class Prices {
 
     public boolean offers(Enchantment enchantment, int level) {
         long quote = quote(enchantment, level);
-        return quote >= 1 && quote <= maximum;
+        return accepts(quote);
     }
 
     public int upgradeCost(Enchantment enchantment, int current, int target) {
@@ -114,7 +117,7 @@ public final class Prices {
 
     public boolean offersUpgrade(Enchantment enchantment, int current, int target) {
         long quote = upgradeQuote(enchantment, current, target);
-        return quote > 0 && quote <= maximum;
+        return accepts(quote);
     }
 
     long upgradeQuote(Enchantment enchantment, int current, int target) {
