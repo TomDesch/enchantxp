@@ -147,7 +147,7 @@ final class EditorPages {
             }
             result.add(new Entry(Material.SLIME_BALL, "Add item type", Arrays.asList(
                     "Use a legacy item name such as DIAMOND_SWORD.", "BOOK also covers ENCHANTED_BOOK unless it has its own cap."),
-                    () -> editor.prompt(draft, "Which legacy item type (for example DIAMOND_SWORD)?", input -> {
+                    () -> editor.prompt(draft, "Which legacy item type (for example DIAMOND_SWORD)? Blank is not allowed.", input -> {
                         String material = ConfigValues.material(input.toUpperCase(Locale.ROOT), "Item type").name();
                         draft.route = "pick:" + material;
                     }), null));

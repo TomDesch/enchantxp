@@ -1130,6 +1130,12 @@ class ConfigEditorTest {
         clickNamed("Item");
         verify(fixture.player).sendMessage(contains("Blank is not allowed"));
         verify(fixture.player, never()).sendMessage(contains("<blank>"));
+        input("cancel");
+        editor.navigate(draft(), "items");
+        clearInvocations(fixture.player);
+        clickNamed("Add item type");
+        verify(fixture.player).sendMessage(contains("Blank is not allowed"));
+        verify(fixture.player, never()).sendMessage(contains("<blank>"));
     }
 
     @Test
