@@ -8,12 +8,19 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.DirectoryStream;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
@@ -72,8 +79,18 @@ class ConfigFileStore {
 
     Path commit(Path staged, byte[] expectedHash, String contents, BooleanSupplier beginCommit) throws IOException {
         byte[] original = unchanged(expectedHash);
+        retainLatestBackup();
         Path backup = sibling(".backup-");
-        Files.write(backup, original, StandardOpenOption.CREATE_NEW);
+        try {
+            Files.write(backup, original, StandardOpenOption.CREATE_NEW);
+        } catch (IOException failure) {
+            try {
+                Files.deleteIfExists(backup);
+            } catch (IOException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
         if (!beginCommit.getAsBoolean()) {
             throw new IOException("Save cancelled before replacing config.yml.");
         }
@@ -87,6 +104,63 @@ class ConfigFileStore {
             throw new SavedException("Saved file could not be verified; backup: " + backup.getFileName(), failure);
         }
         return backup;
+    }
+
+    // Prune before creating, so failed/cancelled attempts cannot grow an unbounded archive.
+    private void retainLatestBackup() throws IOException {
+        List<Backup> backups = new ArrayList<>();
+        Path directory = file.getParent() == null ? file.toAbsolutePath().getParent() : file.getParent();
+        try (DirectoryStream<Path> children = Files.newDirectoryStream(directory)) {
+            for (Path child : children) {
+                if (ownedBackup(child)) {
+                    BasicFileAttributes attributes = Files.readAttributes(child, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                    if (regular(attributes)) {
+                        backups.add(new Backup(child, attributes));
+                    }
+                }
+            }
+            backups.sort(Comparator.comparing((Backup backup) -> backup.attributes.creationTime())
+                    .thenComparing(backup -> backup.attributes.lastModifiedTime())
+                    .thenComparing(backup -> backup.path.getFileName().toString()).reversed());
+            for (int index = 1; index < backups.size(); index++) {
+                Backup backup = backups.get(index);
+                BasicFileAttributes current = Files.readAttributes(backup.path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                if (!regular(current) || !Objects.equals(current.fileKey(), backup.attributes.fileKey())) {
+                    throw new IOException("Backup changed during retention: " + backup.path.getFileName());
+                }
+                delete(backup.path);
+            }
+        } catch (IOException failure) {
+            throw new IOException("Could not clean old config.yml backups; save was not started.", failure);
+        }
+    }
+
+    private boolean ownedBackup(Path path) {
+        String prefix = file.getFileName() + ".backup-";
+        String name = path.getFileName().toString();
+        if (!name.startsWith(prefix)) {
+            return false;
+        }
+        String suffix = name.substring(prefix.length());
+        try {
+            return UUID.fromString(suffix).toString().equals(suffix);
+        } catch (IllegalArgumentException notOwned) {
+            return false;
+        }
+    }
+
+    private static boolean regular(BasicFileAttributes attributes) {
+        return attributes.isRegularFile() && !attributes.isSymbolicLink() && !attributes.isOther();
+    }
+
+    private static final class Backup {
+        private final Path path;
+        private final BasicFileAttributes attributes;
+
+        private Backup(Path path, BasicFileAttributes attributes) {
+            this.path = path;
+            this.attributes = attributes;
+        }
     }
 
     void replace(Path staged) throws IOException {

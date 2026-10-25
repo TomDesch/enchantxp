@@ -144,7 +144,11 @@ the editor does not overwrite a detected change.
 Apply stages a same-directory file, rechecks access, then keeps a unique
 `config.yml.backup-<id>` containing the exact original bytes before atomic file
 replacement and readback. Filesystems without atomic replacement are rejected;
-there is no non-atomic fallback. Backups are not automatically deleted.
+there is no non-atomic fallback. At most two owned regular UUID-named backups
+are retained, newest first by creation time. A save prunes older ones before
+creating another, including failed/cancelled attempts; the latest recoverable
+generation stays available. Retention errors abort with an explicit failure.
+Unrelated names and symbolic links/reparse entries are not cleaned.
 Explicit saving may normalize YAML formatting and remove comments. Opening,
 editing, discarding and reloading never rewrite the file.
 
