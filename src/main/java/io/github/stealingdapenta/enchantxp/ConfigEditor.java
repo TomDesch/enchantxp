@@ -84,7 +84,9 @@ final class ConfigEditor implements Listener {
             }, LIFETIME_TICKS);
             show(draft);
         } catch (RuntimeException failure) {
-            discard(player);
+            if (drafts.get(draft.owner) == draft) {
+                discard(player);
+            }
             throw failure;
         }
     }
@@ -356,10 +358,22 @@ final class ConfigEditor implements Listener {
                 "Escape discards. Chat prompts keep your draft.", "Drafts expire after 15 minutes.")));
         draft.transition = true;
         draft.view = holder;
+        InventoryView opened = null;
         try {
-            draft.player.openInventory(inventory);
+            opened = draft.player.openInventory(inventory);
         } finally {
             draft.transition = false;
+            // Opening fires synchronous listeners that can cancel, invalidate or replace this draft.
+            if (!permitted(draft) || draft.view != holder || opened == null ||
+                    opened.getTopInventory() != inventory ||
+                    draft.player.getOpenInventory().getTopInventory() != inventory) {
+                if (drafts.get(draft.owner) == draft) {
+                    discard(draft.player);
+                }
+                if (draft.player.getOpenInventory().getTopInventory() == inventory) {
+                    draft.player.closeInventory();
+                }
+            }
         }
     }
 

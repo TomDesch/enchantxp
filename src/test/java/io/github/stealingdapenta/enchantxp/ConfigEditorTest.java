@@ -104,6 +104,84 @@ class ConfigEditorTest {
     }
 
     @Test
+    void cancelledEditorOpenDiscardsOnlyItsDraftAndLeavesForeignInventoryAlone() {
+        InventoryView foreign = fixture.view;
+        List<ConfigEditor.Draft> attempted = new ArrayList<ConfigEditor.Draft>();
+        when(fixture.player.openInventory(any(Inventory.class))).thenAnswer(call -> {
+            Inventory inventory = call.getArgument(0);
+            attempted.add(((ConfigEditor.EditorHolder) inventory.getHolder()).draft);
+            return null;
+        });
+        request("config");
+        worker();
+        fixture.tick();
+        assertFalse(editor.current(attempted.get(0)));
+        assertFalse(editor.resume(fixture.player));
+        assertSame(foreign, fixture.view);
+        verify(fixture.player, never()).closeInventory();
+        verify(fixture.player, times(1)).openInventory(any(Inventory.class));
+    }
+
+    @Test
+    void reentrantEditorOpenKeepsNewerDraftAndDoesNotCloseItsView() {
+        List<ConfigEditor.Draft> attempted = new ArrayList<ConfigEditor.Draft>();
+        when(fixture.player.openInventory(any(Inventory.class))).thenAnswer(call -> {
+            Inventory inventory = call.getArgument(0);
+            ConfigEditor.Draft draft = ((ConfigEditor.EditorHolder) inventory.getHolder()).draft;
+            attempted.add(draft);
+            if (attempted.size() == 1) {
+                editor.open(fixture.player, PricesTest.yaml(ORIGINAL), new byte[32], draft.generation);
+                return null;
+            }
+            fixture.view = fixture.new View(inventory);
+            return fixture.view;
+        });
+        request("config");
+        worker();
+        fixture.tick();
+        assertFalse(editor.current(attempted.get(0)));
+        assertTrue(editor.current(attempted.get(1)));
+        assertSame(attempted.get(1), draft());
+        verify(fixture.player, never()).closeInventory();
+    }
+
+    @Test
+    void reentrantInvalidationDuringEditorOpenCannotPublishAnInertEditor() {
+        List<ConfigEditor.Draft> attempted = new ArrayList<ConfigEditor.Draft>();
+        when(fixture.player.openInventory(any(Inventory.class))).thenAnswer(call -> {
+            Inventory inventory = call.getArgument(0);
+            attempted.add(((ConfigEditor.EditorHolder) inventory.getHolder()).draft);
+            editor.invalidate();
+            fixture.view = fixture.new View(inventory);
+            return fixture.view;
+        });
+        request("config");
+        worker();
+        fixture.tick();
+        assertFalse(editor.current(attempted.get(0)));
+        assertNull(fixture.view.getTopInventory().getHolder());
+        verify(fixture.player).closeInventory();
+    }
+
+    @Test
+    void reentrantForeignOpenDiscardsDraftWithoutClosingForeignView() {
+        InventoryView foreign = foreignView(fixture.player);
+        List<ConfigEditor.Draft> attempted = new ArrayList<ConfigEditor.Draft>();
+        when(fixture.player.openInventory(any(Inventory.class))).thenAnswer(call -> {
+            Inventory inventory = call.getArgument(0);
+            attempted.add(((ConfigEditor.EditorHolder) inventory.getHolder()).draft);
+            fixture.view = foreign;
+            return fixture.new View(inventory);
+        });
+        request("config");
+        worker();
+        fixture.tick();
+        assertFalse(editor.current(attempted.get(0)));
+        assertSame(foreign, fixture.view);
+        verify(fixture.player, never()).closeInventory();
+    }
+
+    @Test
     void commandCompletesEverySupportedSubcommandByPermissionAndNeverFallsBackToPlayers() {
         assertEquals(Arrays.asList("config", "reload"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
         assertEquals(Collections.singletonList("config"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{"CoN"}));
@@ -235,7 +313,12 @@ class ConfigEditorTest {
         when(second.isOnline()).thenReturn(true);
         when(second.hasPermission(ConfigEditor.PERMISSION)).thenReturn(true);
         when(fixture.plugin.getServer().getPlayer(second.getUniqueId())).thenReturn(second);
-        when(second.getOpenInventory()).thenReturn(fixture.view);
+        InventoryView secondView = mock(InventoryView.class);
+        when(second.getOpenInventory()).thenReturn(secondView);
+        when(second.openInventory(any(Inventory.class))).thenAnswer(call -> {
+            when(secondView.getTopInventory()).thenReturn(call.getArgument(0));
+            return secondView;
+        });
         editor.open(second, PricesTest.yaml(ORIGINAL), ConfigFileStore.hash(Files.readAllBytes(file)), first.generation);
         ArgumentCaptor<Inventory> opened = ArgumentCaptor.forClass(Inventory.class);
         verify(second).openInventory(opened.capture());
