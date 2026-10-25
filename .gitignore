@@ -1,0 +1,9 @@
+/target/
+/.research/
+/.idea/
+*.iml
+*.env
+/.playtest/
+/PLAYTEST.md
+__pycache__/
+*.pyc

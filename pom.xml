@@ -1,0 +1,36 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.github.stealingdapenta</groupId>
+  <artifactId>enchantxp</artifactId>
+  <version>0.2.0-alpha.3</version>
+  <name>EnchantXP</name>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>8</maven.compiler.release>
+    <spigot.version>1.12.2-R0.1-20180712.012057-156</spigot.version>
+    <junit.version>5.11.4</junit.version>
+    <mockito.version>5.14.2</mockito.version>
+    <compiler.version>3.14.1</compiler.version>
+    <surefire.version>3.5.4</surefire.version>
+    <resources.version>3.3.1</resources.version>
+    <jar.version>3.4.2</jar.version>
+    <clean.version>3.5.0</clean.version>
+  </properties>
+  <repositories>
+    <repository><id>spigot-snapshots</id><url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url></repository>
+  </repositories>
+  <dependencies>
+    <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>${spigot.version}</version><scope>provided</scope></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>${junit.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><version>${mockito.version}</version><scope>test</scope></dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-clean-plugin</artifactId><version>${clean.version}</version></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId><version>${resources.version}</version></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>${compiler.version}</version><configuration><showWarnings>true</showWarnings></configuration></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>${surefire.version}</version><configuration><argLine>-javaagent:"${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar"</argLine></configuration></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-jar-plugin</artifactId><version>${jar.version}</version></plugin>
+    </plugins>
+  </build>
+</project>
