@@ -1,4 +1,4 @@
-package io.github.stealingdapenta.enchantxp.enchanting;
+package io.github.stealingdapenta.enchantxp.menu;
 
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;

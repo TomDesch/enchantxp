@@ -41,7 +41,8 @@ Under `io.github.stealingdapenta.enchantxp`:
 - `configuration`: immutable validated `Settings`; `configuration.values` contains
   shared strict YAML readers and fresh packaged defaults.
 - `presentation`: immutable text/sound settings and the shared menu stages.
-- `enchanting`: eligibility, enchantment rules, prices, shelves, permissions and raw XP.
+- `enchanting`: enchantment rules, prices, shelves, permissions and raw XP.
+  Menu admission stays package-private with the purchase workflow.
 
 Dependencies point from administration to menu/configuration, from menu to
 configuration/presentation/enchanting, and from configuration to presentation/enchanting.

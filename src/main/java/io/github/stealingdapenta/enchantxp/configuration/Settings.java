@@ -38,11 +38,6 @@ public final class Settings {
                 BookshelfPricing.read(config), EnchantPermissions.read(config), MenuSounds.read(config));
     }
 
-    public static Settings withPrices(Prices prices) {
-        return new Settings(prices, EnchantPolicy.vanilla(), MenuText.read(ConfigValues.defaults()), 6,
-                BookshelfPricing.disabled(), EnchantPermissions.disabled(), MenuSounds.read(ConfigValues.defaults()));
-    }
-
     public Prices prices() { return prices; }
     public EnchantPolicy policy() { return policy; }
     public MenuText text() { return text; }

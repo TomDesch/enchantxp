@@ -2,7 +2,6 @@ package io.github.stealingdapenta.enchantxp.menu;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
-import io.github.stealingdapenta.enchantxp.enchanting.EnchantAccess;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
@@ -1565,9 +1564,9 @@ class TableMenusTest {
     }
 
     @Test
-    void rejectedBookMetaApplicationFailsExplicitlyBeforeAnIconCanBeUsed() {
+    void rejectedBookMetaApplicationFailsExplicitlyBeforeAnIconCanBeUsed() throws Exception {
         when(Bukkit.getItemFactory().isApplicable(any(EnchantmentStorageMeta.class), eq(Material.ENCHANTED_BOOK))).thenReturn(false);
-        MenuText text = Settings.withPrices(fixture.prices).text();
+        MenuText text = Settings.read(yaml(ServerFixture.LEGACY_PRICING + "base-xp: 25\nmax-cost: 1000000\n")).text();
         IllegalStateException failure = assertThrows(IllegalStateException.class, () ->
                 text.book(ServerFixture.SHARPNESS, 2, Collections.emptyMap(), "option"));
         assertTrue(failure.getMessage().contains("metadata"));

@@ -2,7 +2,6 @@ package io.github.stealingdapenta.enchantxp.menu;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
-import io.github.stealingdapenta.enchantxp.enchanting.EnchantAccess;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPermissions;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;
@@ -11,7 +10,7 @@ import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.presentation.MenuSounds;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
-import static io.github.stealingdapenta.enchantxp.enchanting.EnchantAccess.eligible;
+import static io.github.stealingdapenta.enchantxp.menu.EnchantAccess.eligible;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -73,10 +72,6 @@ public final class TableMenus implements Listener {
     private final Map<UUID, EnchantSession> sessions = new HashMap<UUID, EnchantSession>();
     private boolean running = true;
     private boolean replacing;
-
-    TableMenus(Plugin plugin, Prices prices) {
-        this(plugin, Settings.withPrices(prices));
-    }
 
     public TableMenus(Plugin plugin, Settings settings) {
         this.plugin = plugin;

@@ -1,7 +1,6 @@
 package io.github.stealingdapenta.enchantxp.menu;
 
 import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
-import io.github.stealingdapenta.enchantxp.enchanting.EnchantAccess;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPermissions;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;

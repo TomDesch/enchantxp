@@ -3,7 +3,6 @@ package io.github.stealingdapenta.enchantxp.menu;
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
-import io.github.stealingdapenta.enchantxp.enchanting.EnchantAccess;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
