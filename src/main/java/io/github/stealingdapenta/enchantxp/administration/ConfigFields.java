@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -39,12 +40,17 @@ final class ConfigFields {
         final double minimum;
         final double maximum;
         private final Integer sentinel;
+        private final String unit;
 
         Field(String path, String name, String help, Kind kind, double minimum, double maximum) {
             this(path, name, help, kind, minimum, maximum, null);
         }
 
         Field(String path, String name, String help, Kind kind, double minimum, double maximum, Integer sentinel) {
+            this(path, name, help, kind, minimum, maximum, sentinel, "");
+        }
+
+        Field(String path, String name, String help, Kind kind, double minimum, double maximum, Integer sentinel, String unit) {
             this.path = path;
             this.name = name;
             this.help = help;
@@ -52,9 +58,13 @@ final class ConfigFields {
             this.minimum = minimum;
             this.maximum = maximum;
             this.sentinel = sentinel;
+            this.unit = unit;
         }
 
         Object parse(String input) {
+            if (path.startsWith(LoreStyle.PATH + ".")) {
+                return LoreStyle.validateSetting(path.substring(LoreStyle.PATH.length() + 1), input);
+            }
             switch (kind) {
                 case INTEGER:
                     return integerInput(input);
@@ -74,7 +84,7 @@ final class ConfigFields {
             String setting = name + " (" + path + "): ";
             switch (kind) {
                 case INTEGER:
-                    return setting + "Enter a whole number from " + (int) minimum + " to " + (int) maximum + " inclusive." + (sentinel == null ? "" : " Or " + sentinel + " to disable the configured ceiling.") + " " + help;
+                    return setting + "Enter a whole number from " + display((int) minimum) + " to " + display((int) maximum) + " inclusive." + (sentinel == null ? "" : " Or " + sentinel + " to disable the configured ceiling.") + unitInputHelp() + " " + help;
                 case DECIMAL:
                     return setting + "Enter a number from " + minimum + " to " + maximum + " inclusive. " + help;
                 case MATERIAL:
@@ -84,6 +94,14 @@ final class ConfigFields {
                 default:
                     return textPrompt(name, true);
             }
+        }
+
+        String display(Object value) {
+            return String.valueOf(value) + unit;
+        }
+
+        private String unitInputHelp() {
+            return unit.isEmpty() ? "" : " Enter digits only; the " + unit + " unit is shown automatically.";
         }
 
         private int integerInput(String input) {
@@ -136,8 +154,8 @@ final class ConfigFields {
     List<Field> shelves() {
         List<Field> fields = new ArrayList<>();
         fields.add(bool("bookshelf-pricing.enabled", "Bookshelf prices", "Nearby bookshelves make enchanting cheaper."));
-        fields.add(integer("bookshelf-pricing.zero-shelf-penalty-percent", "No-shelf surcharge (%)", "Extra cost when no bookshelves are nearby.", 0, 1000000));
-        fields.add(integer("bookshelf-pricing.per-bookshelf-reduction-percent", "Discount per shelf (%)", "Removes this many surcharge points per shelf.", 0, 1000000));
+        fields.add(percent("bookshelf-pricing.zero-shelf-penalty-percent", "No-shelf surcharge", "Extra cost when no bookshelves are nearby."));
+        fields.add(percent("bookshelf-pricing.per-bookshelf-reduction-percent", "Discount per shelf", "Removes this many surcharge points per shelf."));
         fields.add(
                 integer("bookshelf-pricing.max-bookshelves", "Shelf limit", "Vanilla 1.12.2 counts at most 15. Shelves sit two blocks out, at table height or one above. The intervening gap must be air at both heights. No chunks are loaded.", 1, 15));
         return fields;
@@ -234,6 +252,10 @@ final class ConfigFields {
         return new Field(path, name, help, Kind.INTEGER, min, max);
     }
 
+    private static Field percent(String path, String name, String help) {
+        return new Field(path, name, help, Kind.INTEGER, 0, 1000000, null, "%");
+    }
+
     static Field bool(String path, String name, String help) {
         return new Field(path, name, help, Kind.BOOLEAN, 0, 0);
     }
@@ -275,6 +297,11 @@ final class ConfigFields {
     }
 
     private static String help(String path) {
+        if (path.startsWith(LoreStyle.PATH + ".")) {
+            return path.endsWith("action-prefix")
+                    ? "Shared by operator instructions and table lore marked {action}. Use <blank> for no prefix. No placeholders."
+                    : "Shared lore role. Enter only & color or formatting codes, for example &b. Use <blank> for no color.";
+        }
         if (path.startsWith(MESSAGES)) {
             return messageCopy(path.substring(MESSAGES.length()))[1];
         }

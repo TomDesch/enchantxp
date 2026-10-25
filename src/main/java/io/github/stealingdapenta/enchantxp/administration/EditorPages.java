@@ -7,12 +7,12 @@ import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;
 import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
+import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
@@ -69,7 +69,7 @@ final class EditorPages {
             category(result, draft, "Permissions", Material.TRIPWIRE_HOOK, "Control access to enchantment levels.", "permissions");
             category(result, draft, "Sounds", Material.NOTE_BLOCK, "Choose click, success and error sounds.", "sounds");
             category(result, draft, "Enchantments", Material.ENCHANTED_BOOK, "Names, prices, caps and level overrides.", "enchants");
-            category(result, draft, "Item limits", Material.DIAMOND_SWORD, "Override caps for individual item types.", "items");
+            category(result, draft, "Item limits", Material.DIAMOND_SWORD, "Set the maximum enchantment level per item type, not its XP price. Example: Diamond Sword, then Sharpness, then 10. 0 disables that option. Reset inherits the enchantment cap.", "items");
             category(result, draft, "Menu appearance", Material.PAINTING, "Headings, button items and lore.", "ui");
             category(result, draft, "Chat messages", Material.PAPER, "Change all player and operator feedback.", "messages");
         } else if (route.equals("general")) {
@@ -121,8 +121,17 @@ final class EditorPages {
     private void namedEnchantments(List<Entry> result, Draft draft) {
         String material = draft.route.equals("enchants") ? null : draft.route.substring(5);
         for (String name : Enchantments.names()) {
-            String help = material == null ? "Set price, level cap and display name." : "Uses: level " + inheritedCap(draft, material, name) + ". Add a cap to override it.";
-            result.add(new Entry(Material.ENCHANTED_BOOK, fields.friendly(draft.document, name), Collections.singletonList(help), () -> chooseEnchantment(draft, material, name), null));
+            List<String> help = new ArrayList<>();
+            if (material == null) {
+                help.add("Set price, level cap and display name.");
+                help.add(LoreStyle.action("Left click to open."));
+            } else {
+                help.add(LoreStyle.info("Item", ConfigFields.label(material)));
+                help.add(LoreStyle.number("Current maximum level", inheritedCap(draft, material, name)));
+                help.add("This item cap replaces the enchantment cap; it does not change XP prices.");
+                help.add(LoreStyle.action("Left click to set its maximum level."));
+            }
+            result.add(new Entry(Material.ENCHANTED_BOOK, fields.friendly(draft.document, name), help, () -> chooseEnchantment(draft, material, name), null));
         }
     }
 
@@ -132,7 +141,7 @@ final class EditorPages {
             return;
         }
         String path = ITEM_PATH + material + ".max-levels." + name;
-        ConfigFields.Field field = capField(path, fields.friendly(draft.document, name));
+        ConfigFields.Field field = capField(path, ConfigFields.label(material) + " - " + fields.friendly(draft.document, name) + " maximum level");
         editor.prompt(draft, field.prompt(), value -> {
             draft.document.set(path, field.parse(value));
             draft.route = "item:" + material;
@@ -146,10 +155,10 @@ final class EditorPages {
             List<String> keys = new ArrayList<>(levels.getKeys(false));
             keys.sort((first, second) -> Integer.compare(Integer.parseInt(first), Integer.parseInt(second)));
             for (String level : keys) {
-                addField(result, draft, ConfigFields.integer(path + "." + level, "Level " + level + " total XP", "Cumulative value, not the upgrade charge. Right click removes this override.", 1, Prices.HARD_MAX_COST));
+                addField(result, draft, ConfigFields.integer(path + "." + level, "Level " + level + " total XP", "Cumulative value, not the upgrade charge. Reset inherits the calculated total.", 1, Prices.HARD_MAX_COST));
             }
         }
-        result.add(new Entry(Material.SLIME_BALL, "Add level price", Arrays.asList("Only the levels you add are overridden.", "Totals must rise at every level when you Apply."), () -> editor.prompt(draft, levelChoice().prompt(), input -> {
+        result.add(new Entry(Material.SLIME_BALL, "Add level price", Arrays.asList("Only the levels you add are overridden.", "Totals must rise at every level when you Apply.", LoreStyle.action("Left click to choose a level.")), () -> editor.prompt(draft, levelChoice().prompt(), input -> {
             int level = (Integer) levelChoice().parse(input);
             draft.route = "level:" + name + ":" + level;
         }), null));
@@ -161,14 +170,14 @@ final class EditorPages {
             ConfigurationSection items = draft.document.getConfigurationSection("items");
             if (items != null) {
                 for (String material : items.getKeys(false)) {
-                    result.add(new Entry(Material.valueOf(material), ConfigFields.label(material), Arrays.asList("Set caps for this item type.", "Right click removes this item's overrides."), () -> editor.navigate(draft, "item:" + material), () -> {
+                    result.add(new Entry(Material.valueOf(material), ConfigFields.label(material), Arrays.asList("Maximum enchantment levels for this item, not XP prices.", LoreStyle.action("Left click to choose an enchantment."), LoreStyle.action("Right click to delete this item's overrides.")), () -> editor.navigate(draft, "item:" + material), () -> {
                         draft.document.set(ITEM_PATH + material, null);
                         editor.show(draft);
                     }));
                 }
             }
-            result.add(new Entry(Material.SLIME_BALL, "Add item type", Arrays.asList("Use a legacy item name such as DIAMOND_SWORD.", "BOOK also covers ENCHANTED_BOOK unless it has its own cap."),
-                                 () -> editor.prompt(draft, "Which legacy item type (for example DIAMOND_SWORD)? Blank is not allowed.", input -> {
+            result.add(new Entry(Material.SLIME_BALL, "Add item type", Arrays.asList("Set a maximum enchantment level, not an XP price.", LoreStyle.info("Example", "Diamond Sword -> Sharpness -> 10."), "0 disables; reset inherits the enchantment cap.", "BOOK covers plain and enchanted books; an ENCHANTED_BOOK cap takes priority.", LoreStyle.action("Left click to enter an item type.")),
+                                 () -> editor.prompt(draft, "Maximum enchantment level per item, not XP price: enter an item type such as DIAMOND_SWORD, then choose Sharpness and enter 10. 0 disables; reset inherits the enchantment cap. Blank is not allowed.", input -> {
                                      String material = ConfigValues.material(input.toUpperCase(Locale.ROOT), "Item type")
                                                                    .name();
                                      draft.route = "pick:" + material;
@@ -182,7 +191,7 @@ final class EditorPages {
                     addField(result, draft, capField(path + "." + name, fields.friendly(draft.document, name)));
                 }
             }
-            category(result, draft, "Add enchantment cap", Material.SLIME_BALL, "Only added caps override the enchantment or vanilla cap.", "pick:" + material);
+            category(result, draft, "Add enchantment cap", Material.SLIME_BALL, "Set the maximum enchantment level for " + ConfigFields.label(material) + ". This replaces the enchantment cap, not its XP price. For example, Sharpness -> 10. 0 disables; reset inherits the enchantment cap.", "pick:" + material);
         }
     }
 
@@ -190,12 +199,15 @@ final class EditorPages {
         String route = draft.route;
         if (route.equals("ui")) {
             addFields(result, draft, fields.leaves("ui"));
+            category(result, draft, "Lore formatting", Material.SIGN, "Shared instruction prefix and role colors for operator and table lore.", "lore-style");
             category(result, draft, "Headings", Material.SIGN, "Titles for each enchanting step.", "titles");
             category(result, draft, "Buttons and decorations", Material.ITEM_FRAME, "Item, variant, display name and lore.", "icons");
-            result.add(new Entry(Material.BUCKET, "Use default appearance", Arrays.asList("Remove all menu appearance overrides, including height.", "Use this to restore default stage lore too."), () -> {
+            result.add(new Entry(Material.BUCKET, "Use default appearance", Arrays.asList("Remove all menu appearance overrides, including height.", "Default stage lore will also be restored.", LoreStyle.action("Left click to restore default appearance.")), () -> {
                 draft.document.set("ui", null);
                 editor.show(draft);
             }, null));
+        } else if (route.equals("lore-style")) {
+            addFields(result, draft, fields.leaves(LoreStyle.PATH));
         } else if (route.equals("titles")) {
             addFields(result, draft, fields.leaves("ui.titles"));
         } else if (route.equals("icons")) {
@@ -207,7 +219,7 @@ final class EditorPages {
         } else if (route.startsWith("icon:")) {
             String path = "ui.icons." + route.substring(5);
             addFields(result, draft, fields.leaves(path));
-            result.add(new Entry(Material.BUCKET, "Use default icon", Arrays.asList("Remove this whole icon's overrides.", "Its default item, name and lore will be used."), () -> {
+            result.add(new Entry(Material.BUCKET, "Use default icon", Arrays.asList("Remove this whole icon's overrides.", "Its default item, name and lore will be used.", LoreStyle.action("Left click to restore the default icon.")), () -> {
                 draft.document.set(path, null);
                 editor.show(draft);
             }, null));
@@ -222,7 +234,7 @@ final class EditorPages {
         List<String> lines = lines(draft, path);
         for (int i = 0; i < lines.size(); i++) {
             final int index = i;
-            result.add(new Entry(Material.PAPER, "Line " + (i + 1), Arrays.asList(preview(lines.get(i)), "Left click to edit. Right click to delete."),
+            result.add(new Entry(Material.PAPER, "Line " + (i + 1), Arrays.asList(LoreStyle.info("Text", preview(lines.get(i))), LoreStyle.action("Left click to edit."), LoreStyle.action("Right click to delete.")),
                                  () -> editor.prompt(draft, ConfigFields.textPrompt("New text for line " + (index + 1), true), input -> {
                                      List<String> changed = lines(draft, path);
                                      changed.set(index, input);
@@ -234,7 +246,7 @@ final class EditorPages {
                 editor.show(draft);
             }));
         }
-        result.add(new Entry(Material.SLIME_BALL, "Add line", Collections.singletonList("Use <blank> to add a blank line."), () -> editor.prompt(draft, ConfigFields.textPrompt("Text for the new line", true), input -> {
+        result.add(new Entry(Material.SLIME_BALL, "Add line", Arrays.asList("The text <blank> adds a blank line.", LoreStyle.action("Left click to add a line.")), () -> editor.prompt(draft, ConfigFields.textPrompt("Text for the new line", true), input -> {
             List<String> changed = lines(draft, path);
             if (changed.size() >= MAX_LORE_LINES) {
                 throw new IllegalArgumentException("Keep lore to 256 lines or fewer.");
@@ -242,7 +254,7 @@ final class EditorPages {
             changed.add(input);
             draft.document.set(path, changed);
         }), null));
-        result.add(new Entry(Material.BUCKET, "Clear all lines", Collections.singletonList("Keep an explicit empty list."), () -> {
+        result.add(new Entry(Material.BUCKET, "Clear all lines", Arrays.asList("Keep an explicit empty list.", LoreStyle.action("Left click to delete all lines.")), () -> {
             draft.document.set(path, new ArrayList<>());
             editor.show(draft);
         }, null));
@@ -250,7 +262,7 @@ final class EditorPages {
 
     private ConfigFields.Field capField(String path, String name) {
         return ConfigFields.integer(path, name,
-                                    "0 disables this purchase option. This item override replaces the enchantment or vanilla cap. Global disabled status, legality, price and permissions still restrict purchases. ENCHANTED_BOOK overrides BOOK; otherwise BOOK is the fallback. Reset inherits the enchantment or vanilla cap.",
+                                    "Maximum enchantment level for this item, not XP price. For example, Diamond Sword -> Sharpness -> 10. 0 disables this option. This replaces the enchantment cap. Reset inherits the enchantment or vanilla cap. BOOK covers both book types unless ENCHANTED_BOOK has its own cap. Global disabled status, legality, price and permissions still apply.",
                                     0, EnchantPolicy.MAX_LEVEL);
     }
 
@@ -276,7 +288,7 @@ final class EditorPages {
 
     private void category(List<Entry> entries, Draft draft, String name, Material material, String help, String route) {
         List<String> lore = new ArrayList<>(Arrays.asList(help.split("(?<=\\.)\\s+")));
-        lore.add("Left click to open.");
+        lore.add(LoreStyle.action("Left click to open."));
         entries.add(new Entry(material, name, lore, () -> editor.navigate(draft, route), null));
     }
 
@@ -297,10 +309,11 @@ final class EditorPages {
         boolean explicit = draft.document.contains(field.path, true);
         List<String> lore = new ArrayList<>();
         lore.add(valueLine(field, value));
-        lore.add(explicit ? "Source: explicit override." : "Source: inherited fallback.");
+        lore.add(LoreStyle.info("Source", explicit ? "explicit override." : "inherited fallback."));
         lore.addAll(Arrays.asList(field.help.split("(?<=\\.)\\s+")));
         if (field.path.startsWith("messages.")) {
-            lore.add("& colors work here. Use <blank> to hide this text.");
+            lore.add("& colors work here.");
+            lore.add(LoreStyle.action("Use <blank> to hide this text."));
         }
         if (field.path.startsWith("ui.") && !draft.document.isConfigurationSection("ui")) {
             lore.add("Adding menu overrides leaves omitted stage lore empty.");
@@ -314,20 +327,24 @@ final class EditorPages {
         if (field.path.startsWith(ITEM_PATH)) {
             lore.add("ENCHANTED_BOOK caps win over BOOK caps.");
         }
-        lore.add(field.kind == ConfigFields.Kind.BOOLEAN ? "Left click to toggle." : "Left click to edit.");
-        lore.add("Right click to reset or remove the override.");
+        if (field.path.equals("base-xp") || field.path.equals("max-cost")) {
+            lore.add("Reset restores the shipped value.");
+        } else {
+            lore.add("Reset removes this override and uses its inherited fallback.");
+        }
+        lore.add(LoreStyle.action(field.kind == ConfigFields.Kind.BOOLEAN ? "Left click to toggle." : "Left click to edit."));
+        lore.add(LoreStyle.action("Right click to reset to default."));
         return lore;
     }
 
     private static void addPlaceholderHelp(List<String> lore, String path) {
         List<String> tokens = new ArrayList<>(MenuText.placeholders(path));
-        tokens.remove("prefix");
         Collections.sort(tokens);
         if (!tokens.isEmpty()) {
-            String examples = tokens.stream()
-                                    .map(token -> "{" + token + "}")
-                                    .collect(Collectors.joining(", "));
-            lore.add("Placeholders: " + examples);
+            lore.add("{label}Placeholders:");
+            for (String token : tokens) {
+                lore.add("- {" + token + "}");
+            }
         }
     }
 
@@ -369,12 +386,12 @@ final class EditorPages {
 
     private String valueLine(ConfigFields.Field field, Object value) {
         if (field.kind == ConfigFields.Kind.BOOLEAN) {
-            return Boolean.TRUE.equals(value) ? "&aEnabled" : "&cDisabled";
+            return Boolean.TRUE.equals(value) ? ChatColor.GREEN + "Enabled" : ChatColor.RED + "Disabled";
         }
         if (field.kind == ConfigFields.Kind.INTEGER || field.kind == ConfigFields.Kind.DECIMAL) {
-            return "&7Value: &6" + value;
+            return LoreStyle.number("Value", field.display(value));
         }
-        return "Value: " + preview(value instanceof List ? ((List<?>) value).size() + " lines" : String.valueOf(value));
+        return LoreStyle.info("Value", preview(value instanceof List ? ((List<?>) value).size() + " lines" : String.valueOf(value)));
     }
 
     private List<String> lines(Draft draft, String path) {

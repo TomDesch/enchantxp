@@ -1089,11 +1089,11 @@ class TableMenusTest {
         fixture.openTable();
         ItemMeta instructions = fixture.view.getTopInventory().getItem(23).getItemMeta();
         assertEquals("Choose your item", ChatColor.stripColor(instructions.getDisplayName()));
-        assertEquals(Collections.singletonList("Left click one compatible item below."),
+        assertEquals(Collections.singletonList("\u00bb Left click one compatible item below."),
                 stripped(instructions.getLore()));
         ItemMeta info = fixture.view.getTopInventory().getItem(TableMenus.INFO_SLOT).getItemMeta();
         assertEquals("Balance: 1000 XP", ChatColor.stripColor(info.getDisplayName()));
-        assertEquals(Arrays.asList("Bookshelf pricing disabled", "Page 1 of 1"), stripped(info.getLore()));
+        assertEquals(Arrays.asList("Bookshelf pricing disabled", "Page: 1 of 1"), stripped(info.getLore()));
         assertEquals(" ", fixture.view.getTopInventory().getItem(0).getItemMeta().getDisplayName());
         fixture.confirmPage();
         fixture.click(TableMenus.CONFIRM_SLOT, ClickType.LEFT);

@@ -277,8 +277,8 @@ class FeedbackFeaturesTest {
         assertEquals("Can't Confirm", ChatColor.stripColor(fixture.view.getTopInventory().getItem(slot).getItemMeta().getDisplayName()));
         String lore = ChatColor.stripColor(String.join("\n", fixture.view.getTopInventory().getItem(slot).getItemMeta().getLore()));
         assertTrue(lore.contains("Sharpness 2"));
-        assertTrue(lore.contains("Pay 100 raw XP"));
-        assertTrue(lore.contains("Missing 100 raw XP"));
+        assertTrue(lore.contains("Price: 100 raw XP"));
+        assertTrue(lore.contains("Missing: 100 raw XP"));
         fixture.click(slot, ClickType.LEFT);
         fixture.tick();
         assertNotNull(fixture.menu());

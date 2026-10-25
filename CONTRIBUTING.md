@@ -22,7 +22,7 @@ Under `io.github.stealingdapenta.enchantxp`, only `EnchantXpPlugin` lives in the
 - `administration`: editor drafts, page definitions, serialized reload/save and file ownership. Drafts and save tickets stay together, package-private.
 - `menu`: events, session identity, quotes and transactions. `MenuRenderer` builds unpublished views using immutable route/pagination values; `TableMenus` owns publication and lifecycle fences.
 - `configuration`: immutable validated settings; `configuration.values` provides strict optional/required YAML readers and fresh packaged defaults.
-- `presentation`: immutable text/sound settings and menu stages.
+- `presentation`: immutable text/sound settings, shared explicit lore roles and menu stages. Lore-style settings live outside `ui` to preserve its existing omitted-lore contract.
 - `enchanting`: enchantment rules, cumulative prices, shelves, permissions and raw XP. Menu admission stays package-private with its purchase workflow.
 
 Dependencies flow from administration to menu/configuration, from menu to configuration/presentation/enchanting, and from configuration to presentation/enchanting. Presentation uses enchanting names; both depend on shared YAML readers below them. Rules and presentation never depend on controllers. Tests mirror these boundaries; reusable YAML and metadata fixtures live in `testsupport`.

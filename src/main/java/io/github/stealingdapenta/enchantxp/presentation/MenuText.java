@@ -42,12 +42,14 @@ public final class MenuText {
     private final Map<String, List<String>> lists;
     private final Map<String, Material> materials;
     private final Map<String, Short> data;
+    private final LoreStyle loreStyle;
 
-    private MenuText(Map<String, String> strings, Map<String, List<String>> lists, Map<String, Material> materials, Map<String, Short> data) {
+    private MenuText(Map<String, String> strings, Map<String, List<String>> lists, Map<String, Material> materials, Map<String, Short> data, LoreStyle loreStyle) {
         this.strings = Collections.unmodifiableMap(new HashMap<>(strings));
         this.lists = Collections.unmodifiableMap(new HashMap<>(lists));
         this.materials = Collections.unmodifiableMap(new HashMap<>(materials));
         this.data = Collections.unmodifiableMap(new HashMap<>(data));
+        this.loreStyle = loreStyle;
     }
 
     public static MenuText read(ConfigurationSection config) {
@@ -64,7 +66,7 @@ public final class MenuText {
             }
         }
         readNames(config, defaults, strings);
-        return new MenuText(strings, lists, materials, data);
+        return new MenuText(strings, lists, materials, data, LoreStyle.read(config));
     }
 
     private static boolean isTemplatePath(ConfigurationSection defaults, String path) {
@@ -147,6 +149,9 @@ public final class MenuText {
 
     private static void uiPlaceholders(String path, Set<String> allowed) {
         allowed.addAll(UI_TOKENS);
+        if (path.endsWith("-lore") || path.endsWith(".lore")) {
+            allowed.addAll(LoreStyle.markers());
+        }
         if (path.equals("ui.icons.sort.name") || path.equals("ui.icons.sort.lore")) {
             allowed.add("sort");
         }
@@ -236,7 +241,7 @@ public final class MenuText {
     public List<String> lore(String path, Map<String, String> values) {
         return lists.get(path)
                     .stream()
-                    .map(line -> render(line, values))
+                    .map(line -> render(loreStyle.format(line), values))
                     .collect(Collectors.toList());
     }
 
@@ -245,10 +250,14 @@ public final class MenuText {
         context.put("player", sender.getName() == null ? "" : sender.getName());
         context.put("prefix", "");
         String body = text(MESSAGE_PATH + message, context);
-        if (!ChatColor.stripColor(body)
-                      .trim()
-                      .isEmpty()) {
-            sender.sendMessage(text(PREFIX_PATH, Collections.emptyMap()) + body);
+        String prefix = text(PREFIX_PATH, Collections.emptyMap());
+        String continuation = "";
+        for (String line : body.split("\\r?\\n", -1)) {
+            String colored = continuation + line;
+            if (!ChatColor.stripColor(colored).trim().isEmpty()) {
+                sender.sendMessage(prefix + colored);
+            }
+            continuation = ChatColor.getLastColors(colored);
         }
     }
 

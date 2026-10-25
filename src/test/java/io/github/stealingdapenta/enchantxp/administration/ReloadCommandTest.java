@@ -11,8 +11,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -29,6 +31,7 @@ import org.bukkit.permissions.PermissionDefault;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -68,6 +71,26 @@ class ReloadCommandTest {
     }
 
     @Test
+    void helpSendsHeaderAndEachPermittedCommandSeparatelyWithExactlyOnePrefix() {
+        when(fixture.player.hasPermission(ConfigEditor.PERMISSION)).thenReturn(true);
+        when(fixture.player.hasPermission(ReloadCommand.PERMISSION)).thenReturn(true);
+        command.execute(fixture.player, "enchantxp", new String[]{"help"});
+        ArgumentCaptor<String> messages = ArgumentCaptor.forClass(String.class);
+        verify(fixture.player, times(4)).sendMessage(messages.capture());
+        List<String> lines = messages.getAllValues();
+        assertFalse(lines.get(0).contains("/enchantxp"));
+        assertTrue(lines.get(1).contains("/enchantxp help"));
+        assertTrue(lines.get(2).contains("/enchantxp config"));
+        assertTrue(lines.get(3).contains("/enchantxp reload"));
+        for (String line : lines) {
+            String plain = ChatColor.stripColor(line);
+            assertEquals(1, plain.split("EnchantXP >", -1).length - 1);
+            assertFalse(line.contains("\n"));
+            assertFalse(line.contains("\\n"));
+        }
+    }
+
+    @Test
     void permissionUsageConsoleAndCompletionUseLegacyCommandContract() {
         command.execute(fixture.player, "enchantxp", new String[]{"reload"});
         verify(fixture.player).sendMessage(contains("need enchantxp.reload"));
@@ -80,7 +103,9 @@ class ReloadCommandTest {
         for (String[] args : new String[][]{{}, {"bad"}, {"reload", "bad"}}) {
             assertTrue(command.execute(console, "enchantxp", args));
         }
-        verify(console, times(3)).sendMessage(contains("Commands you can use: /enchantxp help, /enchantxp reload"));
+        verify(console, times(3)).sendMessage(contains("Commands you can use:"));
+        verify(console, times(3)).sendMessage(contains("/enchantxp help"));
+        verify(console, times(3)).sendMessage(contains("/enchantxp reload"));
         assertTrue(fixture.asyncTasks.isEmpty());
         request(console);
         assertEquals(1, fixture.asyncTasks.size());
@@ -338,7 +363,8 @@ class ReloadCommandTest {
         for (String[] arguments : new String[][]{{}, {"help"}, {"unknown"}, {"config", "extra"}}) {
             command.execute(fixture.player, "enchantxp", arguments);
         }
-        verify(fixture.player, times(4)).sendMessage(contains("Commands you can use: /enchantxp help"));
+        verify(fixture.player, times(4)).sendMessage(contains("Commands you can use:"));
+        verify(fixture.player, times(4)).sendMessage(contains("/enchantxp help"));
         verify(fixture.player, never()).sendMessage(contains("/enchantxp reload"));
         verify(fixture.player, never()).sendMessage(contains("/enchantxp config"));
         assertEquals(Collections.singletonList("help"),

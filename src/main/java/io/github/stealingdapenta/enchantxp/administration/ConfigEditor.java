@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
+import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +53,7 @@ final class ConfigEditor implements Listener {
     static final int SORT = 52;
     private static final String CONFIG_ERROR = "config-error";
     private static final int PAGE_SIZE = 28;
+    private static final int MAX_TITLE_LENGTH = 32;
     private static final int MAX_SESSIONS = 64;
     private static final int MAX_INPUT = 256;
     private static final long LIFETIME_TICKS = 20L * 60 * 15;
@@ -354,11 +356,11 @@ final class ConfigEditor implements Listener {
         int pageCount = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         draft.page = Math.max(0, Math.min(draft.page, pageCount - 1));
         EditorHolder holder = new EditorHolder(this, draft);
-        Inventory inventory = Bukkit.createInventory(holder, 54, color("&5Settings &8| &f" + title(draft.route)));
+        Inventory inventory = Bukkit.createInventory(holder, 54, menuTitle(draft.route));
         holder.inventory = inventory;
         for (int slot = 0; slot < 54; slot++) {
             boolean border = slot < 9 || slot >= 45 || slot % 9 == 0 || slot % 9 == 8;
-            inventory.setItem(slot, icon(Material.STAINED_GLASS_PANE, border ? 2 : 15, " ", Collections.emptyList()));
+            inventory.setItem(slot, icon(holder.style, Material.STAINED_GLASS_PANE, border ? 2 : 15, " ", Collections.emptyList()));
         }
         for (int offset = 0; offset < PAGE_SIZE && draft.page * PAGE_SIZE + offset < entries.size(); offset++) {
             int slot = 10 + (offset / 7) * 9 + offset % 7;
@@ -371,20 +373,20 @@ final class ConfigEditor implements Listener {
     private void footer(EditorHolder holder, List<Entry> entries, int pageCount) {
         Draft draft = holder.draft;
         if (!draft.route.equals("home")) {
-            put(holder, BACK, new Entry(Material.ARROW, "Back", Collections.singletonList("Return to the previous category."),
+            put(holder, BACK, new Entry(Material.ARROW, "Back", Collections.singletonList(LoreStyle.action("Return to the previous category.")),
                     () -> navigate(draft, parent(draft.route)), null));
         }
         if (draft.page > 0) {
-            put(holder, PREVIOUS, new Entry(Material.ARROW, "Previous page", Collections.emptyList(),
+            put(holder, PREVIOUS, new Entry(Material.ARROW, "Previous page", Collections.singletonList(LoreStyle.action("Left click for the previous page.")),
                     () -> { draft.page--; show(draft); }, null));
         }
         if (draft.page + 1 < pageCount) {
-            put(holder, NEXT, new Entry(Material.ARROW, "Next page", Collections.emptyList(),
+            put(holder, NEXT, new Entry(Material.ARROW, "Next page", Collections.singletonList(LoreStyle.action("Left click for the next page.")),
                     () -> { draft.page++; show(draft); }, null));
         }
         if (pages.sortable(draft, entries)) {
             put(holder, SORT, new Entry(Material.HOPPER, draft.alphabetical.contains(draft.route) ? "Sort: alphabetical" : "Sort: default order",
-                    Collections.singletonList("Toggle alphabetical names across all pages."), () -> {
+                    Collections.singletonList(LoreStyle.action("Toggle alphabetical names across all pages.")), () -> {
                         if (!draft.alphabetical.remove(draft.route)) {
                             draft.alphabetical.add(draft.route);
                         }
@@ -392,14 +394,14 @@ final class ConfigEditor implements Listener {
                         show(draft);
                     }, null));
         }
-        put(holder, DISCARD, new Entry(Material.BARRIER, "Discard", Collections.singletonList("Close without saving your draft."), () -> { }, null));
+        put(holder, DISCARD, new Entry(Material.BARRIER, "Discard", Collections.singletonList(LoreStyle.action("Close without saving your draft.")), () -> { }, null));
         put(holder, APPLY, new Entry(Material.EMERALD, "Apply and save", Arrays.asList(
-                "Validate the whole draft, then save it.", "An exact backup is kept beside config.yml.",
+                LoreStyle.action("Validate the whole draft, then save it."), "An exact backup is kept beside config.yml.",
                 "Saving may reformat YAML and remove comments.", "Nothing is written until you choose this."),
                 () -> coordinator.save(draft), null));
-        holder.inventory.setItem(4, icon(Material.BOOK_AND_QUILL, 0, "Your settings draft", Arrays.asList(
-                "Page " + (draft.page + 1) + " of " + pageCount, "Changes stay private until Apply.",
-                "Escape discards. Chat prompts keep your draft.", "Drafts expire after 15 minutes.")));
+        holder.inventory.setItem(4, icon(holder.style, Material.BOOK_AND_QUILL, 0, "Your settings draft", Arrays.asList(
+                LoreStyle.number("Page", (draft.page + 1) + " of " + pageCount), "Changes stay private until Apply.",
+                LoreStyle.action("Escape to discard this draft."), "Chat prompts keep your draft.", "Drafts expire after 15 minutes.")));
     }
 
     private void publish(Draft draft, EditorHolder holder) {
@@ -430,7 +432,7 @@ final class ConfigEditor implements Listener {
 
     private void put(EditorHolder holder, int slot, Entry entry) {
         holder.entries.put(slot, entry);
-        ItemStack item = icon(entry.material, 0, entry.name, entry.lore);
+        ItemStack item = icon(holder.style, entry.material, 0, entry.name, entry.lore);
         if (entry.glowing) {
             ItemMeta meta = item.getItemMeta();
             meta.addEnchant(Enchantment.DURABILITY, 1, true);
@@ -440,21 +442,9 @@ final class ConfigEditor implements Listener {
         holder.inventory.setItem(slot, item);
     }
 
-    private ItemStack icon(Material material, int data, String name, List<String> lines) {
+    private ItemStack icon(LoreStyle style, Material material, int data, String name, List<String> lines) {
         ItemStack item = new ItemStack(material, 1, (short) data);
-        List<String> lore = new ArrayList<>();
-        for (String line : lines) {
-            String remaining = line;
-            while (remaining.length() > 48) {
-                int split = remaining.lastIndexOf(' ', 48);
-                if (split < 1) {
-                    split = 48;
-                }
-                lore.add(color("&7" + remaining.substring(0, split)));
-                remaining = remaining.substring(split).trim();
-            }
-            lore.add(color("&7" + remaining));
-        }
+        List<String> lore = style.editorLines(lines);
         MenuText.decorate(item, color("&d" + name), lore);
         return item;
     }
@@ -468,20 +458,39 @@ final class ConfigEditor implements Listener {
         if (route.equals("home")) {
             return "EnchantXP";
         }
+        if (route.equals("items")) {
+            return "Item level caps";
+        }
+        if (route.startsWith("item:") || route.startsWith("pick:")) {
+            String item = ConfigFields.label(route.substring(route.indexOf(':') + 1));
+            return route.startsWith("pick:") ? "Pick: " + item : "Caps: " + item;
+        }
         if (route.contains(":")) {
             return ConfigFields.label(route.substring(0, route.indexOf(':')));
         }
         return ConfigFields.label(route);
     }
 
+    private static String menuTitle(String route) {
+        String title = color("&5Settings &8| &f" + title(route));
+        if (title.length() > MAX_TITLE_LENGTH) {
+            title = title.substring(0, MAX_TITLE_LENGTH);
+        }
+        if (title.endsWith(String.valueOf(ChatColor.COLOR_CHAR))) {
+            title = title.substring(0, title.length() - 1);
+        }
+        return title;
+    }
+
     private static String parent(String route) {
         if (route.startsWith("enchant:")) { return "enchants"; }
         if (route.startsWith("levels:")) { return "enchant:" + route.substring(7); }
         if (route.startsWith("level:")) { return "levels:" + route.split(":")[1]; }
-        if (route.startsWith("item:") || route.startsWith("pick:")) { return "items"; }
+        if (route.startsWith("item:")) { return "items"; }
+        if (route.startsWith("pick:")) { return "item:" + route.substring(5); }
         if (route.startsWith("icon:")) { return "icons"; }
         if (route.startsWith("sound:")) { return "sounds"; }
-        if (route.equals("titles") || route.equals("icons")) { return "ui"; }
+        if (route.equals("titles") || route.equals("icons") || route.equals("lore-style")) { return "ui"; }
         if (route.startsWith("lines:ui.icons.")) { return "icon:" + route.split("\\.")[2]; }
         if (route.startsWith("lines:")) { return "ui"; }
         return "home";
@@ -530,11 +539,13 @@ final class ConfigEditor implements Listener {
         final ConfigEditor editor;
         final Draft draft;
         final Map<Integer, Entry> entries = new HashMap<>();
+        final LoreStyle style;
         private Inventory inventory;
 
         EditorHolder(ConfigEditor editor, Draft draft) {
             this.editor = editor;
             this.draft = draft;
+            this.style = LoreStyle.read(draft.document);
         }
 
         @Override

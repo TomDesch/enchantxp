@@ -37,7 +37,12 @@ Use `/enchantxp config` or edit `plugins\EnchantXP\config.yml` and run `/enchant
 - `max-level: 0` disables that purchase option. Item-type caps override enchantment caps; an explicit ENCHANTED_BOOK cap takes priority over BOOK. Above-vanilla levels do not guarantee support in vanilla or third-party mechanics.
 - Bookshelf pricing uses the vanilla 1.12.2 two-block-radius air-gap scan at table height and one above, with a hard maximum of 15. The balance bottle shows the effective count or reports that pricing is disabled.
 - Green glowing toggles are enabled; red toggles are disabled. Named editor lists can be sorted alphabetically.
+- Item limits change maximum enchantment levels, not XP prices: Diamond Sword -> Sharpness -> 10. A cap of 0 disables that option; resetting removes the item override and inherits the enchantment or vanilla cap.
 - Text supports `&` colors and formatting, such as `&5`, `&6`, `&l`, `&o` and `&r`. Prompts say when `<blank>` is allowed; type `cancel` to return.
+
+Menu appearance -> Lore formatting controls `lore-style.action-prefix` (default `\u00bb `, displayed as a right-pointing double angle) and the action, label, number and text colors. An empty prefix hides just the symbol. Table lore uses explicit `{action}`, `{label}`, `{number}` and `{text}` roles; unmarked custom prose is left alone. Formatting-only edits do not create `ui` overrides or clear inherited lore.
+
+Existing explicit table lore stays unchanged when upgrading. To adopt the new presentation, compare your intended defaults with packaged `config.yml` and replace only matching old shipped lines with their role-marked equivalents, including `ui.icons.instructions.lore`. Keep customized wording. Command help now sends its heading and each permitted command separately; `{commands}` remains permission-filtered.
 
 The required integer `config-version: 1` identifies the configuration schema, not the plugin release or save count. Before an incompatible upgrade, preserve your old file, compare the new defaults and follow the release instructions before setting the documented schema. There is no automatic migration or unconditional compatibility guarantee.
 

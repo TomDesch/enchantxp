@@ -880,7 +880,7 @@ class ConfigEditorTest {
         click(ConfigEditor.APPLY, ClickType.LEFT);
         finishSave();
         Settings applied = Settings.read(yaml(contents()));
-        assertEquals(Collections.singletonList(ChatColor.GRAY + "Return without paying."),
+        assertEquals(Collections.singletonList(ChatColor.GREEN + "\u00bb Return without paying."),
                 applied.text().icon("back", Collections.emptyMap()).getItemMeta().getLore());
     }
 
@@ -1039,6 +1039,95 @@ class ConfigEditorTest {
     }
 
     @Test
+    void sharedLoreFormattingCanBeEditedWithoutCreatingUiOverridesAndAppliesToFooters() {
+        open();
+        clickNamed("Menu appearance");
+        clickNamed("Lore formatting");
+        clickNamed("Action prefix");
+        input("Go: ");
+        assertEquals("Go: ", draft().document.getString("lore-style.action-prefix"));
+        assertFalse(draft().document.contains("ui", true));
+        List<String> footer = fixture.view.getTopInventory().getItem(ConfigEditor.DISCARD).getItemMeta().getLore();
+        assertTrue(footer.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("Go: Close without saving your draft.")));
+        assertTrue(footer.stream().anyMatch(line -> line.contains(ChatColor.GREEN.toString())));
+        ItemStack tableInput = Settings.read(draft().document).text().icon("instructions", Collections.emptyMap());
+        assertEquals("Go: Left click one compatible item below.", ChatColor.stripColor(tableInput.getItemMeta().getLore().get(0)));
+        clickNamed("Action prefix");
+        input("<blank>");
+        footer = fixture.view.getTopInventory().getItem(ConfigEditor.DISCARD).getItemMeta().getLore();
+        assertTrue(footer.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("Close without saving your draft.")));
+        assertFalse(String.join("", footer).contains("{action}"));
+        clickNamed("Action color");
+        input("not a color");
+        verify(fixture.player).sendMessage(contains("only & color"));
+        input("&d");
+        assertTrue(fixture.view.getTopInventory().getItem(ConfigEditor.DISCARD).getItemMeta().getLore().get(0).contains(ChatColor.LIGHT_PURPLE.toString()));
+    }
+
+    @Test
+    void itemLimitFlowExplainsLevelsAndOverrideInheritanceWithoutChangingPrices() {
+        open();
+        List<String> home = fixture.view.getTopInventory().getItem(findSlot("Item limits")).getItemMeta().getLore();
+        String copy = ChatColor.stripColor(String.join(" ", home));
+        assertTrue(copy.contains("maximum enchantment level"));
+        assertTrue(copy.contains("not its XP price"));
+        clickNamed("Item limits");
+        List<String> add = fixture.view.getTopInventory().getItem(findSlot("Add item type")).getItemMeta().getLore();
+        assertTrue(ChatColor.stripColor(String.join(" ", add)).contains("Sharpness -> 10"));
+        clickNamed("Add item type");
+        verify(fixture.player).sendMessage(contains("not XP price"));
+        input("DIAMOND_SWORD");
+        clickNamed("Sharpness");
+        verify(fixture.player).sendMessage(contains("Diamond sword - Sharpness maximum level"));
+        input("10");
+        assertEquals(10, Settings.read(draft().document).policy().maximum(Material.DIAMOND_SWORD, ServerFixture.SHARPNESS));
+        assertEquals(25, Settings.read(draft().document).prices().cost(ServerFixture.SHARPNESS, 1));
+        List<String> cap = fixture.view.getTopInventory().getItem(findSlot("Sharpness")).getItemMeta().getLore();
+        assertTrue(ChatColor.stripColor(String.join(" ", cap)).contains("Reset inherits"));
+        click(findSlot("Sharpness"), ClickType.RIGHT);
+        assertFalse(draft().document.contains("items.DIAMOND_SWORD.max-levels.DAMAGE_ALL", true));
+        assertEquals(5, Settings.read(draft().document).policy().maximum(Material.DIAMOND_SWORD, ServerFixture.SHARPNESS));
+    }
+
+    @Test
+    void percentagePromptsAndInfoLabelsUseFieldMetadataAndDistinctRoleColors() {
+        open();
+        clickNamed("Bookshelves");
+        ItemStack percentage = fixture.view.getTopInventory().getItem(findSlot("Discount per shelf"));
+        List<String> lore = percentage.getItemMeta().getLore();
+        assertTrue(lore.stream().anyMatch(line -> line.contains(ChatColor.AQUA + "Value: " + ChatColor.GOLD + "10%")));
+        assertTrue(lore.stream().anyMatch(line -> line.contains(ChatColor.AQUA + "Source: " + ChatColor.GRAY)));
+        clickNamed("Discount per shelf");
+        verify(fixture.player).sendMessage(contains("whole number from 0% to 1000000% inclusive"));
+        input("1000001");
+        verify(fixture.player, times(2)).sendMessage(contains("whole number from 0% to 1000000% inclusive"));
+        input("10");
+        assertEquals(10, draft().document.getInt("bookshelf-pricing.per-bookshelf-reduction-percent"));
+    }
+
+    @Test
+    void percentageValuesAndResetInstructionsUseUnitsAndActionFormatting() {
+        open();
+        clickNamed("Bookshelves");
+        ConfigEditor.Entry percentage = draft().view.entries.values().stream()
+                .filter(entry -> entry.name.startsWith("Discount per shelf")).findFirst().get();
+        assertFalse(percentage.name.contains("%"));
+        List<String> lore = fixture.view.getTopInventory().getItem(findSlot(percentage.name)).getItemMeta().getLore();
+        assertTrue(lore.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("Value: 10%")));
+        assertTrue(lore.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("\u00bb Right click to reset to default.")));
+    }
+
+    @Test
+    void placeholderHelpListsSortedLiteralTokensOnSeparateInformationLines() {
+        open();
+        editor.navigate(draft(), "messages");
+        List<String> lore = fixture.view.getTopInventory().getItem(findSlot("Enchantment complete")).getItemMeta().getLore();
+        List<String> bullets = lore.stream().map(ChatColor::stripColor).filter(line -> line.startsWith("- {")).collect(Collectors.toList());
+        assertEquals(Arrays.asList("- {balance}", "- {cost}", "- {enchantment}", "- {level}", "- {player}", "- {prefix}"), bullets);
+        assertTrue(lore.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("Placeholders:")));
+    }
+
+    @Test
     void messageSettingsExplainWhenTheyAppearWithoutChangingTheirPathsOrTokens() throws Exception {
         open();
         clickNamed("Chat messages");
@@ -1151,7 +1240,7 @@ class ConfigEditorTest {
         assertTrue(enabled.getItemMeta().hasItemFlag(ItemFlag.HIDE_ENCHANTS));
         String lore = String.join("\n", enabled.getItemMeta().getLore());
         assertTrue(lore.contains(ChatColor.GREEN + "Enabled"));
-        assertTrue(lore.contains("Source: explicit override."));
+        assertTrue(ChatColor.stripColor(lore).contains("Source: explicit override."));
         assertFalse(lore.contains("Uses: true"));
         editor.navigate(draft(), "enchant:DAMAGE_ALL");
         ItemStack price = fixture.view.getTopInventory().getItem(findSlot("Starting price"));

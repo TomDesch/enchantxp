@@ -5,12 +5,14 @@ import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.menu.ServerFixture;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
+import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
 import static io.github.stealingdapenta.enchantxp.testsupport.YamlDocuments.yaml;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.InvalidConfigurationException;
@@ -24,6 +26,60 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class SettingsTest {
+    @Test
+    void prefixOnlyOverridePreservesInheritedStageAndInputLoreAndSupportsBlankPrefix() throws Exception {
+        for (String prefix : Arrays.asList("Go: ", "")) {
+            YamlConfiguration document = yaml("base-xp: 25\nmax-cost: -1\n");
+            document.set("lore-style.action-prefix", prefix);
+            document.set("lore-style.action-color", "&d");
+            String before = document.saveToString();
+            MenuText text = Settings.read(document).text();
+            assertEquals(Collections.singletonList(ChatColor.LIGHT_PURPLE + prefix + "Left click one compatible item below."),
+                    text.icon("instructions", Collections.emptyMap()).getItemMeta().getLore());
+            assertEquals(Collections.singletonList(ChatColor.LIGHT_PURPLE + prefix + "Left click to choose enchantment"),
+                    text.lore("ui.type-lore", Collections.emptyMap()));
+            for (String stage : Arrays.asList("option", "review", "selection")) {
+                assertFalse(text.lore("ui." + stage + "-lore", Collections.emptyMap()).isEmpty());
+            }
+            assertEquals(before, document.saveToString());
+            assertFalse(document.contains("ui", true));
+        }
+    }
+
+    @Test
+    void explicitLoreRolesDoNotClassifyCustomProseOrRescanInsertedValues() throws Exception {
+        Settings settings = settings("lore-style:\n  action-prefix: 'Do: '\n  label-color: '&3'\n  number-color: '&6'\n" +
+                "ui:\n  option-lore: ['{label}Price: {number}{cost}', '{action}Choose {item}', '&7Left click custom prose']\n");
+        Map<String, String> values = new HashMap<>();
+        values.put("cost", "10");
+        values.put("item", "{action}&a{cost}");
+        assertEquals(Arrays.asList(ChatColor.DARK_AQUA + "Price: " + ChatColor.GOLD + "10",
+                ChatColor.GREEN + "Do: Choose {action}&a{cost}", ChatColor.GRAY + "Left click custom prose"),
+                settings.text().lore("ui.option-lore", values));
+        for (String invalid : Arrays.asList("messages:\n  success: '{action}'", "ui:\n  option-name: '{label}'",
+                "lore-style:\n  action-prefix: '{cost}'", "lore-style:\n  action-color: 'green'",
+                "lore-style:\n  action-prefix: 12", "lore-style:\n  unknown: ''", "lore-style: []")) {
+            assertThrows(IllegalArgumentException.class, () -> settings(invalid), invalid);
+        }
+    }
+
+    @Test
+    void operatorWrapPreservesLiteralValuesRoleColorsAndInformationBoundaries() throws Exception {
+        LoreStyle style = LoreStyle.read(yaml(""));
+        String value = String.join(" ", Collections.nCopies(12, "literal"));
+        List<String> wrapped = style.editorLines(Arrays.asList(LoreStyle.info("Value", value),
+                "{label}Placeholders:", "- {action}", LoreStyle.info("Text", "{action}&6{cost}")));
+        assertTrue(wrapped.get(1).startsWith(ChatColor.GRAY.toString()));
+        assertTrue(wrapped.contains(ChatColor.GRAY + "" + ChatColor.AQUA + "Placeholders:"));
+        assertTrue(wrapped.contains(ChatColor.GRAY + "- {action}"));
+        assertTrue(wrapped.contains(ChatColor.GRAY + "" + ChatColor.AQUA + "Text: " + ChatColor.GRAY + "{action}&6{cost}"));
+        YamlConfiguration longPrefix = yaml("");
+        longPrefix.set("lore-style.action-prefix", String.join("", Collections.nCopies(60, ">")));
+        List<String> longLines = LoreStyle.read(longPrefix).editorLines(Collections.singletonList(LoreStyle.action("Do it")));
+        assertFalse(longLines.isEmpty());
+        assertTrue(longLines.size() <= 5);
+    }
+
     @Test
     void schemaIsRequiredTypedAndBuildDefinedWithoutChangingOperatorDocument() throws Exception {
         for (Object version : Arrays.asList(null, "1", 1.0, true, 0, 2)) {

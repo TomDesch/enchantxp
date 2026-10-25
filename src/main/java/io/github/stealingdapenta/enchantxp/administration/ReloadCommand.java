@@ -117,15 +117,15 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
 
     private void help(CommandSender sender) {
         List<String> commands = new ArrayList<>();
-        commands.add("/enchantxp help");
+        commands.add("/enchantxp help - Show available commands.");
         if (sender instanceof Player && sender.hasPermission(ConfigEditor.PERMISSION)) {
-            commands.add("/enchantxp config (in-game)");
+            commands.add("/enchantxp config (in-game) - Edit settings.");
         }
         if (sender.hasPermission(PERMISSION)) {
-            commands.add("/enchantxp reload (console or in-game)");
+            commands.add("/enchantxp reload (console or in-game) - Reload settings.");
         }
         settings.text()
-                .send(sender, "reload-usage", Collections.singletonMap("commands", String.join(", ", commands)));
+                .send(sender, "reload-usage", Collections.singletonMap("commands", "\n" + String.join("\n", commands)));
     }
 
     private void readReload(CommandSender sender, long request, Object owner) {
