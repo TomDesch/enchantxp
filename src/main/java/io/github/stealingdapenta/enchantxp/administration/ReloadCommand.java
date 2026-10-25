@@ -3,6 +3,7 @@ package io.github.stealingdapenta.enchantxp.administration;
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.menu.TableMenus;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -38,6 +39,10 @@ import org.bukkit.scheduler.BukkitScheduler;
 public final class ReloadCommand implements CommandExecutor, TabCompleter {
 
     static final String PERMISSION = "enchantxp.reload";
+    private static final String CONFIG_SUBCOMMAND = "config";
+    private static final String RELOAD_SUBCOMMAND = "reload";
+    private static final String HELP_SUBCOMMAND = "help";
+    private static final String CONFIG_ERROR = "config-error";
     private final Plugin plugin;
     private final TableMenus menus;
     private final File file;
@@ -45,14 +50,14 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     private final BukkitScheduler scheduler;
     private final Logger logger;
     private final ConfigEditor editor;
-    private final ExecutorService cleanupExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(1), action -> {
+    private final ExecutorService cleanupExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1), action -> {
         Thread thread = new Thread(action, "EnchantXP-config-cleanup");
         thread.setDaemon(true);
         return thread;
     });
     private Settings settings;
     private volatile boolean active = true;
-    private final AtomicReference<Object> busy = new AtomicReference<Object>();
+    private final AtomicReference<Object> busy = new AtomicReference<>();
     private long operation;
     private long generation;
 
@@ -83,9 +88,9 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         requireMainThread();
-        if (args.length != 1 || (!args[0].equalsIgnoreCase("config") && !args[0].equalsIgnoreCase("reload"))) {
+        if (args.length != 1 || (!args[0].equalsIgnoreCase(CONFIG_SUBCOMMAND) && !args[0].equalsIgnoreCase(RELOAD_SUBCOMMAND))) {
             help(sender);
-        } else if (args[0].equalsIgnoreCase("config")) {
+        } else if (args[0].equalsIgnoreCase(CONFIG_SUBCOMMAND)) {
             if (!sender.hasPermission(ConfigEditor.PERMISSION)) {
                 send(sender, "config-denied");
             } else if (!(sender instanceof Player)) {
@@ -132,7 +137,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         Exception problem = null;
         try {
             contents = ConfigFileStore.decode(store.read());
-        } catch (Exception failure) {
+        } catch (IOException | RuntimeException failure) {
             problem = failure;
         }
         final String candidate = contents;
@@ -190,47 +195,51 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         busy.set(owner);
         long baseGeneration = generation;
         InventoryView expectedView = player.getOpenInventory();
-        executeAsync(player, () -> {
-            byte[] bytes = null;
-            Exception problem = null;
-            try {
-                bytes = store.read();
-            } catch (Exception failure) {
-                problem = failure;
+        executeAsync(player, () -> readEditor(player, baseGeneration, expectedView, owner), owner);
+    }
+
+    private void readEditor(Player player, long baseGeneration, InventoryView expectedView, Object owner) {
+        byte[] bytes = null;
+        Exception problem = null;
+        try {
+            bytes = store.read();
+        } catch (IOException | RuntimeException failure) {
+            problem = failure;
+        }
+        final byte[] original = bytes;
+        final Exception readFailure = problem;
+        dispatch(() -> completeEditorOpen(player, baseGeneration, expectedView, owner, original, readFailure), "settings read", owner);
+    }
+
+    private void completeEditorOpen(Player player, long baseGeneration, InventoryView expectedView, Object owner, byte[] original, Exception readFailure) {
+        try {
+            if (!active || !connected(player) || !player.hasPermission(ConfigEditor.PERMISSION)) {
+                return;
             }
-            final byte[] original = bytes;
-            final Exception readFailure = problem;
-            dispatch(() -> {
-                try {
-                    if (!active || !connected(player) || !player.hasPermission(ConfigEditor.PERMISSION)) {
-                        return;
-                    }
-                    if (player.getOpenInventory() != expectedView) {
-                        status(player, "config-error", "Settings were not opened because another inventory took over. Run /enchantxp config when ready.");
-                        return;
-                    }
-                    if (readFailure != null) {
-                        throw new IllegalArgumentException("Could not read config.yml", readFailure);
-                    }
-                    YamlConfiguration document = new YamlConfiguration();
-                    document.loadFromString(ConfigFileStore.decode(original));
-                    Settings.read(document);
-                    editor.open(player, document, ConfigFileStore.hash(original), baseGeneration);
-                } catch (Exception failure) {
-                    status(player, "config-error", failure.getMessage());
-                    logger.log(Level.WARNING, "Cannot open EnchantXP settings", failure);
-                } finally {
-                    release(owner);
-                }
-            }, "settings read", owner);
-        }, owner);
+            if (player.getOpenInventory() != expectedView) {
+                status(player, CONFIG_ERROR, "Settings were not opened because another inventory took over. Run /enchantxp config when ready.");
+                return;
+            }
+            if (readFailure != null) {
+                throw new IllegalArgumentException("Could not read config.yml", readFailure);
+            }
+            YamlConfiguration document = new YamlConfiguration();
+            document.loadFromString(ConfigFileStore.decode(original));
+            Settings.read(document);
+            editor.open(player, document, ConfigFileStore.hash(original), baseGeneration);
+        } catch (IOException | InvalidConfigurationException | RuntimeException failure) {
+            status(player, CONFIG_ERROR, failure.getMessage());
+            logger.log(Level.WARNING, "Cannot open EnchantXP settings", failure);
+        } finally {
+            release(owner);
+        }
     }
 
     void save(ConfigEditor.Draft draft) {
         requireMainThread();
         Player player = draft.player;
         if (!allowed(draft)) {
-            status(player, "config-error", "This draft has expired or your access changed. Reopen /enchantxp config.");
+            status(player, CONFIG_ERROR, "This draft has expired or your access changed. Reopen /enchantxp config.");
             return;
         }
         if (busy.get() != null) {
@@ -238,7 +247,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (draft.generation != generation) {
-            status(player, "config-error", "Settings changed. Discard this draft and reopen /enchantxp config.");
+            status(player, CONFIG_ERROR, "Settings changed. Discard this draft and reopen /enchantxp config.");
             return;
         }
         final String contents = draft.document.saveToString();
@@ -247,7 +256,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             replacement = parse(contents);
             menus.validateReplacement(replacement);
         } catch (Exception failure) {
-            status(player, "config-error", failure.getMessage());
+            status(player, CONFIG_ERROR, failure.getMessage());
             return;
         }
         SaveTicket ticket = new SaveTicket();
@@ -375,7 +384,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         }
         logger.log(Level.WARNING, saved ? "Saved, but not applied. Run /enchantxp reload." : "Cannot save EnchantXP settings", failure);
         if (active && connected(draft.player)) {
-            status(draft.player, saved ? "config-saved-not-applied" : "config-error", failure.getMessage());
+            status(draft.player, saved ? "config-saved-not-applied" : CONFIG_ERROR, failure.getMessage());
         }
     }
 
@@ -496,17 +505,17 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        List<String> result = new ArrayList<String>();
+        List<String> result = new ArrayList<>();
         if (active && args.length == 1) {
             String prefix = args[0].toLowerCase(Locale.ROOT);
-            if ("help".startsWith(prefix)) {
-                result.add("help");
+            if (HELP_SUBCOMMAND.startsWith(prefix)) {
+                result.add(HELP_SUBCOMMAND);
             }
-            if (sender instanceof Player && sender.hasPermission(ConfigEditor.PERMISSION) && "config".startsWith(prefix)) {
-                result.add("config");
+            if (sender instanceof Player && sender.hasPermission(ConfigEditor.PERMISSION) && CONFIG_SUBCOMMAND.startsWith(prefix)) {
+                result.add(CONFIG_SUBCOMMAND);
             }
-            if (sender.hasPermission(PERMISSION) && "reload".startsWith(prefix)) {
-                result.add("reload");
+            if (sender.hasPermission(PERMISSION) && RELOAD_SUBCOMMAND.startsWith(prefix)) {
+                result.add(RELOAD_SUBCOMMAND);
             }
         }
         return result;

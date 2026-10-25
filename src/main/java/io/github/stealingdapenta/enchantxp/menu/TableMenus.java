@@ -1,17 +1,17 @@
 package io.github.stealingdapenta.enchantxp.menu;
 
+import static io.github.stealingdapenta.enchantxp.menu.EnchantAccess.eligible;
+
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
-import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPermissions;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;
+import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.presentation.MenuSounds;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
-import static io.github.stealingdapenta.enchantxp.menu.EnchantAccess.eligible;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -49,6 +50,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 public final class TableMenus implements Listener {
+
     static final int BACK_SLOT = 45;
     static final int PREVIOUS_SLOT = 47;
     static final int CANCEL_SLOT = 49;
@@ -58,6 +60,8 @@ public final class TableMenus implements Listener {
     static final int SORT_SLOT = 52;
     static final int PREVIEW_SLOT = 4;
     private static final double MAX_REACH_SQUARED = 25.0;
+    private static final String QUOTE_CHANGED_MESSAGE = "quote-changed";
+    private static final String CONTEXT_MESSAGE = "context";
     private final Plugin plugin;
     private Prices prices;
     private EnchantPolicy policy;
@@ -69,7 +73,7 @@ public final class TableMenus implements Listener {
     private EnchantPermissions permissions;
     private MenuSounds sounds;
     private final EnchantPermissions.Registry registry;
-    private final Map<UUID, EnchantSession> sessions = new HashMap<UUID, EnchantSession>();
+    private final Map<UUID, EnchantSession> sessions = new HashMap<>();
     private boolean running = true;
     private boolean replacing;
 
@@ -82,7 +86,8 @@ public final class TableMenus implements Listener {
         this.shelves = settings.shelves();
         this.permissions = settings.permissions();
         this.sounds = settings.sounds();
-        this.registry = new EnchantPermissions.Registry(plugin.getServer().getPluginManager());
+        this.registry = new EnchantPermissions.Registry(plugin.getServer()
+                                                              .getPluginManager());
         registry.prepare(permissions, policy);
         this.transaction = new EnchantTransaction(prices, policy, shelves, permissions);
         this.renderer = new MenuRenderer(prices, policy, text, layout, shelves);
@@ -104,14 +109,15 @@ public final class TableMenus implements Listener {
             message(player, "eligibility");
             return;
         }
-        int slot = player.getInventory().getHeldItemSlot();
+        int slot = player.getInventory()
+                         .getHeldItemSlot();
         forget(player.getUniqueId());
         EnchantSession session = new EnchantSession(player.getUniqueId(), slot, block.getLocation());
         sessions.put(player.getUniqueId(), session);
         InventoryView expected = player.getOpenInventory();
         queue(player, session, () -> {
             if (!context(player, session) || player.getOpenInventory() != expected) {
-                message(player, "context");
+                message(player, CONTEXT_MESSAGE);
                 finish(player, session);
                 return;
             }
@@ -133,110 +139,133 @@ public final class TableMenus implements Listener {
         }
         Player player = (Player) event.getWhoClicked();
         EnchantSession session = sessions.get(player.getUniqueId());
-        if (!owns(player, session, holder) || event.getView() != player.getOpenInventory() ||
-                event.getRawSlot() < 0) {
+        if (!owns(player, session, holder) || event.getView() != player.getOpenInventory() || event.getRawSlot() < 0) {
             return;
         }
         int slot = event.getRawSlot();
-        MenuLayout controls = holder.layout;
-        if (holder.page == MenuStage.ITEM && event.getClickedInventory() == event.getView().getBottomInventory() &&
-                event.getSlot() >= 0 && event.getSlot() < EnchantSession.STORAGE_SIZE &&
-                slot >= controls.size && slot < controls.size + EnchantSession.STORAGE_SIZE) {
-            ClickType click = event.getClick();
-            if (session.pending || (click != ClickType.LEFT && click != ClickType.RIGHT &&
-                    click != ClickType.SHIFT_LEFT && click != ClickType.SHIFT_RIGHT)) {
-                return;
-            }
-            int sourceSlot = event.getSlot();
-            ItemStack item = player.getInventory().getItem(sourceSlot);
-            ItemStack snapshot = item == null ? null : item.clone();
-            // Acknowledge the selection attempt, not availability; shelf and choice validation stays deferred.
-            if (!empty(snapshot)) {
-                clickSound(player);
-            }
-            queue(player, session, () -> select(player, session, holder, sourceSlot, snapshot));
+        if (isSelectionClick(event, holder)) {
+            queueSelection(event, player, session, holder);
             return;
         }
         if (event.getClick() != ClickType.LEFT) {
             return;
         }
-        if (slot == controls.cancel) {
-            clickSound(player);
-            // Fence queued work now; the 1.12.2 click contract requires deferring only the inventory close.
-            forget(player.getUniqueId());
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (running && player.isOnline() && !player.isDead()) {
-                    closeOrphanMenu(player);
-                }
-            });
+        if (handleControl(player, session, holder, slot)) {
             return;
         }
-        if (slot == controls.back && holder.page != MenuStage.ITEM) {
-            if (session.pending && session.pendingNavigation == slot) {
-                return;
-            }
-            session.pendingNavigation = slot;
-            clickSound(player);
-            // Fence already-dispatched Confirm/selection work before deferring navigation.
-            session.actionGeneration++;
-            queue(player, session, () -> back(player, session, holder));
+        if (session.pending || slot >= holder.layout.size || !actionable(holder, slot)) {
             return;
         }
-        if (slot == controls.sort && sortable(holder)) {
-            if (session.pending && session.pendingNavigation == slot) {
-                return;
-            }
-            session.pendingNavigation = slot;
-            clickSound(player);
-            session.actionGeneration++;
-            queue(player, session, () -> sort(player, session, holder));
-            return;
-        }
-        if (session.pending) {
-            return;
-        }
-        if (slot >= controls.size) {
-            return;
-        }
-        boolean actionable = holder.choices.containsKey(slot) || holder.levels.containsKey(slot) ||
-                (holder.page == MenuStage.CONFIRM && slot == controls.confirm) ||
-                (slot == controls.previous && holder.index > 0) ||
-                (slot == controls.next && holder.index + 1 < holder.pages);
-        if (!actionable) {
-            return;
-        }
-        if (!(holder.page == MenuStage.CONFIRM && slot == controls.confirm)) {
+        if (!confirmation(holder, slot)) {
             clickSound(player);
         }
         queue(player, session, () -> act(player, session, holder, slot));
     }
 
+    private static boolean isSelectionClick(InventoryClickEvent event, MenuHolder holder) {
+        int slot = event.getSlot();
+        int raw = event.getRawSlot();
+        return holder.page == MenuStage.ITEM && event.getClickedInventory() == event.getView()
+                                                                                   .getBottomInventory() && slot >= 0 && slot < EnchantSession.STORAGE_SIZE && raw >= holder.layout.size && raw < holder.layout.size + EnchantSession.STORAGE_SIZE;
+    }
+
+    private void queueSelection(InventoryClickEvent event, Player player, EnchantSession session, MenuHolder holder) {
+        if (session.pending || !selectionClick(event.getClick())) {
+            return;
+        }
+        int sourceSlot = event.getSlot();
+        ItemStack item = player.getInventory()
+                               .getItem(sourceSlot);
+        ItemStack snapshot = item == null ? null : item.clone();
+        // Acknowledge the selection attempt, not availability; shelf and choice validation stays deferred.
+        if (!empty(snapshot)) {
+            clickSound(player);
+        }
+        queue(player, session, () -> select(player, session, holder, sourceSlot, snapshot));
+    }
+
+    private static boolean selectionClick(ClickType click) {
+        return click == ClickType.LEFT || click == ClickType.RIGHT || click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
+    }
+
+    private boolean handleControl(Player player, EnchantSession session, MenuHolder holder, int slot) {
+        if (slot == holder.layout.cancel) {
+            cancel(player);
+            return true;
+        }
+        if (slot == holder.layout.back && holder.page != MenuStage.ITEM) {
+            queueNavigation(player, session, slot, () -> back(player, session, holder));
+            return true;
+        }
+        if (slot == holder.layout.sort && sortable(holder)) {
+            queueNavigation(player, session, slot, () -> sort(player, session, holder));
+            return true;
+        }
+        return false;
+    }
+
+    private void cancel(Player player) {
+        clickSound(player);
+        // Fence queued work now; the 1.12.2 click contract requires deferring only the inventory close.
+        forget(player.getUniqueId());
+        plugin.getServer()
+              .getScheduler()
+              .runTask(plugin, () -> {
+                  if (running && player.isOnline() && !player.isDead()) {
+                      closeOrphanMenu(player);
+                  }
+              });
+    }
+
+    private void queueNavigation(Player player, EnchantSession session, int slot, Runnable action) {
+        if (session.pending && session.pendingNavigation == slot) {
+            return;
+        }
+        session.pendingNavigation = slot;
+        clickSound(player);
+        // Fence already-dispatched Confirm/selection work before deferring navigation.
+        session.actionGeneration++;
+        queue(player, session, action);
+    }
+
+    private static boolean confirmation(MenuHolder holder, int slot) {
+        return holder.page == MenuStage.CONFIRM && slot == holder.layout.confirm;
+    }
+
+    private static boolean actionable(MenuHolder holder, int slot) {
+        return holder.choices.containsKey(slot) || holder.levels.containsKey(slot) || confirmation(holder, slot) || (slot == holder.layout.previous && holder.index > 0) || (slot == holder.layout.next && holder.index + 1 < holder.pages);
+    }
+
     private void queue(Player player, EnchantSession session, Runnable action) {
         long generation = session.actionGeneration;
         session.pending = true;
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (!active(player, session) || generation != session.actionGeneration) {
-                return;
-            }
+        plugin.getServer()
+              .getScheduler()
+              .runTask(plugin, () -> {
+                  if (!active(player, session) || generation != session.actionGeneration) {
+                      return;
+                  }
 
-            try {
-                action.run();
-            } catch (IllegalArgumentException invalidBalance) {
-                message(player, "invalid-balance");
-                finish(player, session);
-            } catch (RuntimeException failure) {
-                plugin.getLogger().log(Level.SEVERE, "EnchantXP menu action failed; no automatic retry", failure);
-                message(player, "failure");
-                finish(player, session);
-            }
-        });
+                  try {
+                      action.run();
+                  } catch (IllegalArgumentException invalidBalance) {
+                      message(player, "invalid-balance");
+                      finish(player, session);
+                  } catch (RuntimeException failure) {
+                      plugin.getLogger()
+                            .log(Level.SEVERE, "EnchantXP menu action failed; no automatic retry", failure);
+                      message(player, "failure");
+                      finish(player, session);
+                  }
+              });
     }
 
     private void clickSound(Player player) {
         try {
             sounds.play(player, "click");
         } catch (RuntimeException failure) {
-            plugin.getLogger().log(Level.WARNING, "Could not play EnchantXP click sound", failure);
+            plugin.getLogger()
+                  .log(Level.WARNING, "Could not play EnchantXP click sound", failure);
         }
     }
 
@@ -244,17 +273,17 @@ public final class TableMenus implements Listener {
         if (!owns(player, session, holder)) {
             return;
         }
-        ItemStack item = player.getInventory().getItem(slot);
+        ItemStack item = player.getInventory()
+                               .getItem(slot);
         if (!context(player, session) || (snapshot == null ? item != null : !snapshot.equals(item))) {
-            message(player, "context");
+            message(player, CONTEXT_MESSAGE);
             finish(player, session);
             return;
         }
-        if (choices(player, item, shelves.count(session.table)).isEmpty()) {
+        if (item == null || choices(player, item, shelves.count(session.table)).isEmpty()) {
             session.pending = false;
             session.pendingNavigation = -1;
-            message(player, !Enchantments.supported(item, policy) ? "unsupported" :
-                    Enchantments.hasLegalUpgrade(item, policy) ? "unavailable" : "no-upgrades");
+            message(player, unavailableReason(item));
             return;
         }
         if (EnchantTransaction.outputSlot(player, slot, item) < 0) {
@@ -275,12 +304,19 @@ public final class TableMenus implements Listener {
         }
     }
 
+    private String unavailableReason(ItemStack item) {
+        if (!Enchantments.supported(item, policy)) {
+            return "unsupported";
+        }
+        return Enchantments.hasLegalUpgrade(item, policy) ? "unavailable" : "no-upgrades";
+    }
+
     private void act(Player player, EnchantSession session, MenuHolder holder, int slot) {
         if (!owns(player, session, holder)) {
             return;
         }
         if (!context(player, session)) {
-            message(player, "context");
+            message(player, CONTEXT_MESSAGE);
             finish(player, session);
             return;
         }
@@ -316,7 +352,7 @@ public final class TableMenus implements Listener {
             return;
         }
         if (fresh.differsFrom(holder.quote)) {
-            message(player, "quote-changed");
+            message(player, QUOTE_CHANGED_MESSAGE);
             show(player, session, build(player, session, MenuStage.CONFIRM, holder.enchantment, holder.level, 0));
             return;
         }
@@ -324,10 +360,8 @@ public final class TableMenus implements Listener {
         try {
             int balance = fresh.mode == GameMode.CREATIVE ? 0 : balance(player);
             Map<String, String> values = renderer.values(player, session, holder);
-            boolean success = transaction.commit(player, session, holder.enchantment, holder.level,
-                    () -> context(player, session), holder.quote);
-            values.put("balance", fresh.mode == GameMode.CREATIVE ? text.text("ui.unlimited-balance", Collections.emptyMap()) :
-                    Integer.toString(success ? balance - fresh.cost : balance));
+            boolean success = transaction.commit(player, session, holder.enchantment, holder.level, () -> context(player, session), holder.quote);
+            values.put("balance", balanceAfter(fresh, balance, success));
             text.send(player, success ? "success" : "stale", values);
             if (success) {
                 sounds.play(player, "success");
@@ -335,14 +369,15 @@ public final class TableMenus implements Listener {
             }
         } catch (EnchantTransaction.QuoteChangedException changed) {
             retry = true;
-            message(player, "quote-changed");
+            message(player, QUOTE_CHANGED_MESSAGE);
             show(player, session, build(player, session, MenuStage.LEVEL, holder.enchantment, 0, 0));
         } catch (EnchantTransaction.OutputSpaceException failure) {
             message(player, "no-space");
         } catch (IllegalArgumentException failure) {
             message(player, "invalid-balance");
         } catch (RuntimeException failure) {
-            plugin.getLogger().log(Level.SEVERE, "Enchant transaction failed; attempted rollback", failure);
+            plugin.getLogger()
+                  .log(Level.SEVERE, "Enchant transaction failed; attempted rollback", failure);
             message(player, "failure");
         } finally {
             if (!retry) {
@@ -351,8 +386,16 @@ public final class TableMenus implements Listener {
         }
     }
 
+    private String balanceAfter(PurchaseQuote quote, int balance, boolean success) {
+        if (quote.mode == GameMode.CREATIVE) {
+            return text.text("ui.unlimited-balance", Collections.emptyMap());
+        }
+        int remaining = success ? balance - quote.cost : balance;
+        return Integer.toString(remaining);
+    }
+
     private void refreshLevels(Player player, EnchantSession session, MenuHolder holder) {
-        message(player, "quote-changed");
+        message(player, QUOTE_CHANGED_MESSAGE);
         show(player, session, build(player, session, MenuStage.LEVEL, holder.enchantment, 0, 0));
     }
 
@@ -361,7 +404,7 @@ public final class TableMenus implements Listener {
             return;
         }
         if (!context(player, session)) {
-            message(player, "context");
+            message(player, CONTEXT_MESSAGE);
             finish(player, session);
             return;
         }
@@ -374,7 +417,7 @@ public final class TableMenus implements Listener {
             return;
         }
         if (!context(player, session)) {
-            message(player, "context");
+            message(player, CONTEXT_MESSAGE);
             finish(player, session);
             return;
         }
@@ -397,10 +440,8 @@ public final class TableMenus implements Listener {
 
     private MenuHolder build(Player player, EnchantSession session, MenuStage page, Enchantment enchantment, int level, int index) {
         int countShelves = shelves.count(session.table);
-        List<Enchantment> choices = page == MenuStage.ENCHANTMENT ?
-                choices(player, session.snapshot(), countShelves) : Collections.emptyList();
-        List<Integer> levels = page == MenuStage.LEVEL ?
-                levels(player, session.snapshot(), enchantment, countShelves) : Collections.emptyList();
+        List<Enchantment> choices = page == MenuStage.ENCHANTMENT ? choices(player, session.snapshot(), countShelves) : Collections.emptyList();
+        List<Integer> levels = page == MenuStage.LEVEL ? levels(player, session.snapshot(), enchantment, countShelves) : Collections.emptyList();
         return renderer.build(this, player, session, new MenuHolder.Route(page, enchantment, level, index), countShelves, choices, levels);
     }
 
@@ -409,34 +450,26 @@ public final class TableMenus implements Listener {
     }
 
     private static boolean sortable(MenuHolder holder) {
-        return holder.availableChoices > 1 &&
-                (holder.page == MenuStage.ENCHANTMENT || holder.page == MenuStage.LEVEL);
+        return holder.availableChoices > 1 && (holder.page == MenuStage.ENCHANTMENT || holder.page == MenuStage.LEVEL);
     }
 
     private boolean available(Player player, ItemStack item, Enchantment enchantment, int level, int countShelves) {
         long cost = shelves.quote(prices, enchantment, Enchantments.level(item, enchantment), level, countShelves);
-        return Enchantments.legal(item, enchantment, level, policy) &&
-                permissions.allows(player, enchantment, level) && prices.accepts(cost);
+        return Enchantments.legal(item, enchantment, level, policy) && permissions.allows(player, enchantment, level) && prices.accepts(cost);
     }
 
     private List<Integer> levels(Player player, ItemStack item, Enchantment enchantment, int countShelves) {
-        List<Integer> result = new ArrayList<Integer>();
-        for (int level : Enchantments.levels(item, enchantment, prices, policy)) {
-            if (available(player, item, enchantment, level, countShelves)) {
-                result.add(level);
-            }
-        }
-        return result;
+        return Enchantments.levels(item, enchantment, prices, policy)
+                           .stream()
+                           .filter(level -> available(player, item, enchantment, level, countShelves))
+                           .collect(Collectors.toList());
     }
 
     private List<Enchantment> choices(Player player, ItemStack item, int countShelves) {
-        List<Enchantment> result = new ArrayList<Enchantment>();
-        for (Enchantment enchantment : Enchantments.choices(item, prices, policy)) {
-            if (!levels(player, item, enchantment, countShelves).isEmpty()) {
-                result.add(enchantment);
-            }
-        }
-        return result;
+        return Enchantments.choices(item, prices, policy)
+                           .stream()
+                           .filter(enchantment -> !levels(player, item, enchantment, countShelves).isEmpty())
+                           .collect(Collectors.toList());
     }
 
     private void message(Player player, String key) {
@@ -459,29 +492,30 @@ public final class TableMenus implements Listener {
     }
 
     private boolean context(Player player, EnchantSession session) {
-        if (!active(player, session) || !eligible(player) || !empty(player.getItemOnCursor()) ||
-                player.getInventory().getHeldItemSlot() != session.heldSlot ||
-                (session.hasSelection() && !session.matches(player.getInventory().getItem(session.slot)))) {
+        if (!active(player, session) || !eligible(player) || !empty(player.getItemOnCursor()) || player.getInventory()
+                                                                                                       .getHeldItemSlot() != session.heldSlot || (session.hasSelection() && !session.matches(player.getInventory()
+                                                                                                                                                                                                   .getItem(session.slot)))) {
             return false;
         }
         Location position = player.getLocation();
         Location table = session.table;
-        return position.getWorld().equals(table.getWorld()) &&
-                table.getWorld().isChunkLoaded(table.getBlockX() >> 4, table.getBlockZ() >> 4) &&
-                position.distanceSquared(table.clone().add(0.5, 0.5, 0.5)) <= MAX_REACH_SQUARED &&
-                table.getBlock().getType() == Material.ENCHANTMENT_TABLE;
+        return position.getWorld()
+                       .equals(table.getWorld()) && table.getWorld()
+                                                         .isChunkLoaded(table.getBlockX() >> 4, table.getBlockZ() >> 4) && position.distanceSquared(table.clone()
+                                                                                                                                                         .add(0.5, 0.5, 0.5)) <= MAX_REACH_SQUARED && table.getBlock()
+                                                                                                                                                                                                           .getType() == Material.ENCHANTMENT_TABLE;
     }
 
     private boolean active(Player player, EnchantSession session) {
-        return running && !replacing && session != null && session.owner.equals(player.getUniqueId()) &&
-                sessions.get(player.getUniqueId()) == session;
+        return running && !replacing && session != null && session.owner.equals(player.getUniqueId()) && sessions.get(player.getUniqueId()) == session;
     }
 
     private boolean owns(Player player, EnchantSession session, MenuHolder holder) {
         // 1.12.2 wraps the inventory again for its open view, but retains the original holder.
-        return active(player, session) && session.menu == holder && holder.owner.equals(player.getUniqueId()) &&
-                holder.sessionId.equals(session.id) && holder(player.getOpenInventory()) == holder &&
-                player.getOpenInventory().getPlayer().getUniqueId().equals(session.owner);
+        return active(player, session) && session.menu == holder && holder.owner.equals(player.getUniqueId()) && holder.sessionId.equals(session.id) && holder(player.getOpenInventory()) == holder && player.getOpenInventory()
+                                                                                                                                                                                                             .getPlayer()
+                                                                                                                                                                                                             .getUniqueId()
+                                                                                                                                                                                                             .equals(session.owner);
     }
 
     private static boolean empty(ItemStack item) {
@@ -509,8 +543,10 @@ public final class TableMenus implements Listener {
             return;
         }
         MenuHolder orphan = holder(player.getOpenInventory());
-        if (orphan != null && orphan.owner.equals(player.getUniqueId()) &&
-                player.getOpenInventory().getPlayer().getUniqueId().equals(orphan.owner)) {
+        if (orphan != null && orphan.owner.equals(player.getUniqueId()) && player.getOpenInventory()
+                                                                                 .getPlayer()
+                                                                                 .getUniqueId()
+                                                                                 .equals(orphan.owner)) {
             player.closeInventory();
         }
     }
@@ -534,7 +570,8 @@ public final class TableMenus implements Listener {
     public void close(InventoryCloseEvent event) {
         requireMainThread();
         MenuHolder closed = holder(event.getView());
-        EnchantSession session = sessions.get(event.getPlayer().getUniqueId());
+        EnchantSession session = sessions.get(event.getPlayer()
+                                                   .getUniqueId());
         if (closed != null && session != null && session.menu == closed) {
             forget(session.owner);
         }
@@ -543,25 +580,29 @@ public final class TableMenus implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void quit(PlayerQuitEvent event) {
         requireMainThread();
-        forget(event.getPlayer().getUniqueId());
+        forget(event.getPlayer()
+                    .getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void kick(PlayerKickEvent event) {
         requireMainThread();
-        forget(event.getPlayer().getUniqueId());
+        forget(event.getPlayer()
+                    .getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void death(PlayerDeathEvent event) {
         requireMainThread();
-        forget(event.getEntity().getUniqueId());
+        forget(event.getEntity()
+                    .getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void drop(PlayerDropItemEvent event) {
         requireMainThread();
-        if (sessions.containsKey(event.getPlayer().getUniqueId())) {
+        if (sessions.containsKey(event.getPlayer()
+                                      .getUniqueId())) {
             event.setCancelled(true);
         }
     }
@@ -569,7 +610,8 @@ public final class TableMenus implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void swap(PlayerSwapHandItemsEvent event) {
         requireMainThread();
-        if (sessions.containsKey(event.getPlayer().getUniqueId())) {
+        if (sessions.containsKey(event.getPlayer()
+                                      .getUniqueId())) {
             event.setCancelled(true);
         }
     }
@@ -577,7 +619,8 @@ public final class TableMenus implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void held(PlayerItemHeldEvent event) {
         requireMainThread();
-        if (sessions.containsKey(event.getPlayer().getUniqueId())) {
+        if (sessions.containsKey(event.getPlayer()
+                                      .getUniqueId())) {
             event.setCancelled(true);
         }
     }
@@ -585,7 +628,9 @@ public final class TableMenus implements Listener {
     public void shutdown() {
         requireMainThread();
         running = false;
-        plugin.getServer().getScheduler().cancelTasks(plugin);
+        plugin.getServer()
+              .getScheduler()
+              .cancelTasks(plugin);
         invalidateMenus();
         registry.shutdown();
     }
@@ -634,7 +679,8 @@ public final class TableMenus implements Listener {
             session.invalidate();
         }
         sessions.clear();
-        for (Player player : new ArrayList<Player>(plugin.getServer().getOnlinePlayers())) {
+        for (Player player : new ArrayList<>(plugin.getServer()
+                                                  .getOnlinePlayers())) {
             closeOrphanMenu(player);
         }
     }

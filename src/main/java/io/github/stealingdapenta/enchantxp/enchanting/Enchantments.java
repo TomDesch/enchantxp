@@ -61,7 +61,8 @@ public final class Enchantments {
                 return false;
             }
             for (Enchantment other : existingLevels.keySet()) {
-                if (!entry.getKey().equals(other) && conflicts(entry.getKey(), other)) {
+                if (!entry.getKey()
+                          .equals(other) && conflicts(entry.getKey(), other)) {
                     return false;
                 }
             }
@@ -70,9 +71,7 @@ public final class Enchantments {
     }
 
     private static boolean validExisting(ItemStack item, Enchantment existing, int level, EnchantPolicy policy) {
-        return vanilla(existing) && (book(item) || existing.canEnchantItem(item)) &&
-                level >= existing.getStartLevel() && level <= EnchantPolicy.MAX_LEVEL &&
-                level <= Math.max(existing.getMaxLevel(), policy.maximum(item.getType(), existing));
+        return vanilla(existing) && (book(item) || existing.canEnchantItem(item)) && level >= existing.getStartLevel() && level <= EnchantPolicy.MAX_LEVEL && level <= Math.max(existing.getMaxLevel(), policy.maximum(item.getType(), existing));
     }
 
     public static List<Enchantment> choices(ItemStack item, Prices prices) {
