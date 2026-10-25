@@ -396,7 +396,7 @@ public final class TableMenus implements Listener {
     }
 
     private MenuHolder build(Player player, EnchantSession session, MenuStage page, Enchantment enchantment, int level, int index) {
-        int countShelves = page == MenuStage.ITEM ? 0 : shelves.count(session.table);
+        int countShelves = shelves.count(session.table);
         List<Enchantment> choices = page == MenuStage.ENCHANTMENT ?
                 choices(player, session.snapshot(), countShelves) : Collections.emptyList();
         List<Integer> levels = page == MenuStage.LEVEL ?

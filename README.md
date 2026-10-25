@@ -116,14 +116,20 @@ extra arguments have no suggestions. Reload and editor saves share one queue slo
 Run `/enchantxp config` in-game with `enchantxp.config` (default op).
 The pink settings menu covers prices, shelves, permissions, sounds, all 30
 enchantments, sparse level prices, item caps, menu appearance and every message.
-Lists have Previous/Next buttons when needed. Left click a setting to edit it;
-booleans toggle immediately in your private draft. Right click resets a setting
-or removes an override. "Uses" shows an inherited value; "Set to" shows an override.
+Lists have Previous/Next buttons when needed. Named enchantment/message/item lists
+offer alphabetical sorting across all pages, returning to page one; each draft
+remembers sorting per category. Home has no Back button.
+Left click a setting to edit it; green Enabled toggles glow, red Disabled toggles do not.
+Right click resets a setting or removes an override. Gold numeric values are separate
+from their explicit/inherited source.
 BOOK caps also cover enchanted books; an explicit ENCHANTED_BOOK cap takes priority.
 
-Numbers, names and text use private chat prompts. Type `cancel` to return without
-changing that value, `<blank>` for empty text, or start with `\` to use either word
-literally. Lore has separate add/edit/delete controls, including blank lines.
+Numbers, names and text use private chat prompts naming the setting and its bounds.
+Integer settings require whole numbers; Purchase limit additionally accepts `-1`.
+Type `cancel` to return without changing a value. Text prompts explicitly allow
+`<blank>` where supported; item names cannot be blank. Start with `\` to use
+reserved words literally. Formatting examples stay literal: `&5` purple, `&6` gold,
+`&l` bold, `&o` italic and `&r` reset. Lore has separate add/edit/delete controls.
 Prompts accept up to 256 characters. Closing for a prompt keeps your draft;
 Escape from the menu or Discard throws away unsaved changes. Drafts last 15 minutes;
 up to 64 may be open. Quit, kick, disable and any successful reload invalidate them.
@@ -189,6 +195,10 @@ cannot apply after disable. Initial invalid configuration still disables the plu
   Sparse level overrides must strictly increase across 1..255, including formula
   boundaries. `max-cost` limits the positive purchase difference, not cumulative
   totals; unavailable choices are never discounted or clamped.
+  For example, base 100 gives totals 400 at level 2 and 900 at level 3.
+  Overriding level 3 to 700 makes that upgrade cost 300 before shelves, not 700.
+  Fortune base 25000 with a 50% shelf surcharge and ceiling 1000000 shows five
+  fresh-item levels; `-1` permits all 70 when its cap is 70, subject to other rules.
 - `bookshelf-pricing.enabled` defaults true. The default whole-percent settings
   are `zero-shelf-penalty-percent: 150`, `per-bookshelf-reduction-percent: 10`,
   `max-bookshelves: 15`. The percentage keys accept 0..1000000 and the cap 1..15.
@@ -196,9 +206,11 @@ cannot apply after disable. Initial invalid configuration still disables the plu
   Thus zero shelves costs 2.5x base, one costs 2.4x and 15 costs base. Round the
   difference once, not two cumulative values. Apply `max-cost` afterwards.
   Disabled returns the base difference without scanning the world.
-  Scans use the exact 1.12.2 air-gap rule, 16 outer-ring columns at table height
+  Scans use the exact 1.12.2 two-block-radius air-gap rule, 16 outer-ring columns at table height
   and one above (32 unique positions), capped at 15, only on the server thread.
   Unloaded chunks and Y outside 0..255 are not read or loaded.
+  The balance bottle's `{bookshelf-status}` shows colored effective current/configured
+  maximum counts, or says pricing is disabled rather than pretending to scan zero shelves.
 - Cap precedence is `items.MATERIAL.max-levels.NAME`, then
   `enchantments.NAME.max-level`, then the native vanilla maximum.
   Caps are 0 (no purchases) or API start level..255. `enabled: false` cannot be

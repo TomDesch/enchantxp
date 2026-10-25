@@ -6,8 +6,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -18,6 +20,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -32,6 +35,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
@@ -44,19 +49,21 @@ final class ConfigEditor implements Listener {
     static final int DISCARD = 49;
     static final int APPLY = 51;
     static final int NEXT = 53;
+    static final int SORT = 52;
+    private static final String CONFIG_ERROR = "config-error";
     private static final int PAGE_SIZE = 28;
     private static final int MAX_SESSIONS = 64;
     private static final int MAX_INPUT = 256;
-    private static final long LIFETIME_TICKS = 20 * 60 * 15;
+    private static final long LIFETIME_TICKS = 20L * 60 * 15;
     private static final long LIFETIME_NANOS = 15L * 60 * 1000000000;
     private final Plugin plugin;
     private final ReloadCommand coordinator;
     private final BukkitScheduler scheduler;
     private final Logger logger;
     private final EditorPages pages = new EditorPages(this);
-    private final Map<UUID, Draft> drafts = new HashMap<UUID, Draft>();
+    private final Map<UUID, Draft> drafts = new HashMap<>();
     // Async chat may inspect only this lookup and its immutable prompt, never a YAML document.
-    private final Map<Player, Prompt> prompts = new ConcurrentHashMap<Player, Prompt>();
+    private final Map<Player, Prompt> prompts = new ConcurrentHashMap<>();
 
     ConfigEditor(Plugin plugin, ReloadCommand coordinator) {
         this.plugin = plugin;
@@ -69,7 +76,7 @@ final class ConfigEditor implements Listener {
         requireMainThread();
         discard(player);
         if (drafts.size() >= MAX_SESSIONS) {
-            coordinator.status(player, "config-error", "Too many settings menus are open. Please try again later.");
+            coordinator.status(player, CONFIG_ERROR, "Too many settings menus are open. Please try again later.");
             return;
         }
         Draft draft = new Draft(player, document, hash, generation);
@@ -124,9 +131,7 @@ final class ConfigEditor implements Listener {
         }
         boolean cancelled = event.isCancelled();
         event.setCancelled(true);
-        if (cancelled || event.getWhoClicked() != holder.draft.player ||
-                event.getView() != holder.draft.player.getOpenInventory() || holder.draft.view != holder ||
-                !permitted(holder.draft)) {
+        if (!ownsClick(event, holder, cancelled)) {
             return;
         }
         Draft draft = holder.draft;
@@ -135,12 +140,7 @@ final class ConfigEditor implements Listener {
         }
         int slot = event.getRawSlot();
         if (slot == DISCARD && event.getClick() == ClickType.LEFT) {
-            // Cancellation fences a queued save before next-tick inventory work.
-            discard(draft.player);
-            defer(() -> {
-                closeOwned(draft.player);
-                coordinator.status(draft.player, "config-discarded", "");
-            });
+            discardClicked(draft);
             return;
         }
         if (draft.pending || saving(draft)) {
@@ -154,24 +154,44 @@ final class ConfigEditor implements Listener {
         if (action == null) {
             return;
         }
+        queueAction(draft, holder, action);
+    }
+
+    private boolean ownsClick(InventoryClickEvent event, EditorHolder holder, boolean cancelled) {
+        return !cancelled && event.getWhoClicked() == holder.draft.player &&
+                event.getView() == holder.draft.player.getOpenInventory() && holder.draft.view == holder &&
+                permitted(holder.draft);
+    }
+
+    private void discardClicked(Draft draft) {
+        // Cancellation fences a queued save before next-tick inventory work.
+        discard(draft.player);
+        defer(() -> {
+            closeOwned(draft.player);
+            coordinator.status(draft.player, "config-discarded", "");
+        });
+    }
+
+    private void queueAction(Draft draft, EditorHolder holder, Runnable action) {
         draft.pending = true;
         try {
-            defer(() -> {
-                if (!permitted(draft) || draft.view != holder ||
-                        draft.player.getOpenInventory().getTopInventory().getHolder() != holder) {
-                    draft.pending = false;
-                    return;
-                }
-                draft.pending = false;
-                try {
-                    action.run();
-                } catch (IllegalArgumentException failure) {
-                    coordinator.status(draft.player, "config-error", failure.getMessage());
-                }
-            });
+            defer(() -> runAction(draft, holder, action));
         } catch (RuntimeException failure) {
             draft.pending = false;
-            coordinator.status(draft.player, "config-error", "Could not open the next page. Try again.");
+            coordinator.status(draft.player, CONFIG_ERROR, "Could not open the next page. Try again.");
+        }
+    }
+
+    private void runAction(Draft draft, EditorHolder holder, Runnable action) {
+        draft.pending = false;
+        if (!permitted(draft) || draft.view != holder ||
+                draft.player.getOpenInventory().getTopInventory().getHolder() != holder) {
+            return;
+        }
+        try {
+            action.run();
+        } catch (IllegalArgumentException failure) {
+            coordinator.status(draft.player, CONFIG_ERROR, failure.getMessage());
         }
     }
 
@@ -228,11 +248,11 @@ final class ConfigEditor implements Listener {
         if (draft.player.getOpenInventory() != prompt.expectedView) {
             prompts.remove(draft.player, prompt);
             discard(draft.player);
-            coordinator.status(draft.player, "config-error", "Settings input cancelled because another inventory opened. Reopen /enchantxp config.");
+            coordinator.status(draft.player, CONFIG_ERROR, "Settings input cancelled because another inventory opened. Reopen /enchantxp config.");
             return;
         }
         if (input == null) {
-            coordinator.status(draft.player, "config-error", "Keep your reply to 256 characters.");
+            coordinator.status(draft.player, CONFIG_ERROR, "Keep your reply to 256 characters.");
             return;
         }
         if (input.equalsIgnoreCase("cancel")) {
@@ -241,13 +261,19 @@ final class ConfigEditor implements Listener {
             return;
         }
         try {
-            String text = input.equalsIgnoreCase("<blank>") ? "" : input.startsWith("\\") ? input.substring(1) : input;
-            prompt.accept.accept(text);
+            prompt.accept.accept(promptText(input));
             prompts.remove(draft.player, prompt);
             show(draft);
         } catch (IllegalArgumentException failure) {
-            coordinator.status(draft.player, "config-error", failure.getMessage());
+            coordinator.status(draft.player, CONFIG_ERROR, failure.getMessage());
         }
+    }
+
+    private String promptText(String input) {
+        if (input.equalsIgnoreCase("<blank>")) {
+            return "";
+        }
+        return input.startsWith("\\") ? input.substring(1) : input;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -264,7 +290,7 @@ final class ConfigEditor implements Listener {
 
     void invalidate() {
         requireMainThread();
-        List<Draft> previous = new ArrayList<Draft>(drafts.values());
+        List<Draft> previous = new ArrayList<>(drafts.values());
         for (Draft draft : previous) {
             discard(draft.player);
         }
@@ -325,8 +351,8 @@ final class ConfigEditor implements Listener {
             return;
         }
         List<Entry> entries = pages.entries(draft);
-        int pages = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
-        draft.page = Math.max(0, Math.min(draft.page, pages - 1));
+        int pageCount = Math.max(1, (entries.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+        draft.page = Math.max(0, Math.min(draft.page, pageCount - 1));
         EditorHolder holder = new EditorHolder(this, draft);
         Inventory inventory = Bukkit.createInventory(holder, 54, color("&5Settings &8| &f" + title(draft.route)));
         holder.inventory = inventory;
@@ -338,35 +364,54 @@ final class ConfigEditor implements Listener {
             int slot = 10 + (offset / 7) * 9 + offset % 7;
             put(holder, slot, entries.get(draft.page * PAGE_SIZE + offset));
         }
-        put(holder, BACK, new Entry(Material.ARROW, "Back", Arrays.asList("Return to the previous category."),
-                () -> navigate(draft, parent(draft.route)), null));
+        footer(holder, entries, pageCount);
+        publish(draft, holder);
+    }
+
+    private void footer(EditorHolder holder, List<Entry> entries, int pageCount) {
+        Draft draft = holder.draft;
+        if (!draft.route.equals("home")) {
+            put(holder, BACK, new Entry(Material.ARROW, "Back", Collections.singletonList("Return to the previous category."),
+                    () -> navigate(draft, parent(draft.route)), null));
+        }
         if (draft.page > 0) {
             put(holder, PREVIOUS, new Entry(Material.ARROW, "Previous page", Collections.emptyList(),
                     () -> { draft.page--; show(draft); }, null));
         }
-        if (draft.page + 1 < pages) {
+        if (draft.page + 1 < pageCount) {
             put(holder, NEXT, new Entry(Material.ARROW, "Next page", Collections.emptyList(),
                     () -> { draft.page++; show(draft); }, null));
         }
-        put(holder, DISCARD, new Entry(Material.BARRIER, "Discard", Arrays.asList("Close without saving your draft."), () -> { }, null));
+        if (pages.sortable(draft, entries)) {
+            put(holder, SORT, new Entry(Material.HOPPER, draft.alphabetical.contains(draft.route) ? "Sort: alphabetical" : "Sort: default order",
+                    Collections.singletonList("Toggle alphabetical names across all pages."), () -> {
+                        if (!draft.alphabetical.remove(draft.route)) {
+                            draft.alphabetical.add(draft.route);
+                        }
+                        draft.page = 0;
+                        show(draft);
+                    }, null));
+        }
+        put(holder, DISCARD, new Entry(Material.BARRIER, "Discard", Collections.singletonList("Close without saving your draft."), () -> { }, null));
         put(holder, APPLY, new Entry(Material.EMERALD, "Apply and save", Arrays.asList(
                 "Validate the whole draft, then save it.", "An exact backup is kept beside config.yml.",
                 "Saving may reformat YAML and remove comments.", "Nothing is written until you choose this."),
                 () -> coordinator.save(draft), null));
-        inventory.setItem(4, icon(Material.BOOK_AND_QUILL, 0, "Your settings draft", Arrays.asList(
-                "Page " + (draft.page + 1) + " of " + pages, "Changes stay private until Apply.",
+        holder.inventory.setItem(4, icon(Material.BOOK_AND_QUILL, 0, "Your settings draft", Arrays.asList(
+                "Page " + (draft.page + 1) + " of " + pageCount, "Changes stay private until Apply.",
                 "Escape discards. Chat prompts keep your draft.", "Drafts expire after 15 minutes.")));
+    }
+
+    private void publish(Draft draft, EditorHolder holder) {
         draft.transition = true;
         draft.view = holder;
         InventoryView opened = null;
         try {
-            opened = draft.player.openInventory(inventory);
+            opened = draft.player.openInventory(holder.inventory);
         } finally {
             draft.transition = false;
             // Opening fires synchronous listeners that can cancel, invalidate or replace this draft.
-            if (!permitted(draft) || draft.view != holder || opened == null ||
-                    opened.getTopInventory().getHolder() != holder ||
-                    draft.player.getOpenInventory().getTopInventory().getHolder() != holder) {
+            if (!published(draft, holder, opened)) {
                 if (drafts.get(draft.owner) == draft && draft.view == holder) {
                     discard(draft.player);
                 }
@@ -377,14 +422,27 @@ final class ConfigEditor implements Listener {
         }
     }
 
+    private boolean published(Draft draft, EditorHolder holder, InventoryView opened) {
+        return permitted(draft) && draft.view == holder && opened != null &&
+                opened.getTopInventory().getHolder() == holder &&
+                draft.player.getOpenInventory().getTopInventory().getHolder() == holder;
+    }
+
     private void put(EditorHolder holder, int slot, Entry entry) {
         holder.entries.put(slot, entry);
-        holder.inventory.setItem(slot, icon(entry.material, 0, entry.name, entry.lore));
+        ItemStack item = icon(entry.material, 0, entry.name, entry.lore);
+        if (entry.glowing) {
+            ItemMeta meta = item.getItemMeta();
+            meta.addEnchant(Enchantment.DURABILITY, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            item.setItemMeta(meta);
+        }
+        holder.inventory.setItem(slot, item);
     }
 
     private ItemStack icon(Material material, int data, String name, List<String> lines) {
         ItemStack item = new ItemStack(material, 1, (short) data);
-        List<String> lore = new ArrayList<String>();
+        List<String> lore = new ArrayList<>();
         for (String line : lines) {
             String remaining = line;
             while (remaining.length() > 48) {
@@ -451,6 +509,7 @@ final class ConfigEditor implements Listener {
         final long generation;
         final long created = System.nanoTime();
         String route = "home";
+        final Set<String> alphabetical = new HashSet<>();
         int page;
         boolean pending;
         boolean transition;
@@ -470,7 +529,7 @@ final class ConfigEditor implements Listener {
     static final class EditorHolder implements InventoryHolder {
         final ConfigEditor editor;
         final Draft draft;
-        final Map<Integer, Entry> entries = new HashMap<Integer, Entry>();
+        final Map<Integer, Entry> entries = new HashMap<>();
         private Inventory inventory;
 
         EditorHolder(ConfigEditor editor, Draft draft) {
@@ -490,13 +549,19 @@ final class ConfigEditor implements Listener {
         final List<String> lore;
         final Runnable action;
         final Runnable reset;
+        final boolean glowing;
 
         Entry(Material material, String name, List<String> lore, Runnable action, Runnable reset) {
+            this(material, name, lore, action, reset, false);
+        }
+
+        Entry(Material material, String name, List<String> lore, Runnable action, Runnable reset, boolean glowing) {
             this.material = material;
             this.name = name;
             this.lore = lore;
             this.action = action;
             this.reset = reset;
+            this.glowing = glowing;
         }
     }
 

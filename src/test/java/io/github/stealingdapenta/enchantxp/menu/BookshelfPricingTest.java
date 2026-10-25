@@ -13,6 +13,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.ChatColor;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,40 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class BookshelfPricingTest {
+    @Test
+    void balanceLoreShowsEffectiveConfiguredShelfCountOrHonestDisabledStatus() throws Exception {
+        for (boolean enabled : new boolean[]{true, false}) {
+            ServerFixture fixture = new ServerFixture("base-xp: 25\nmax-cost: -1\nbookshelf-pricing:\n" +
+                    "  enabled: " + enabled + "\n  max-bookshelves: 3\n");
+            when(fixture.world.getBlockAt(anyInt(), anyInt(), anyInt())).thenAnswer(call -> {
+                int x = call.getArgument(0);
+                int y = call.getArgument(1);
+                int z = call.getArgument(2);
+                if (x == 0 && y == 64 && z == 0) {
+                    return fixture.block;
+                }
+                Block block = mock(Block.class);
+                when(block.getType()).thenReturn(Math.max(Math.abs(x), Math.abs(z)) == 2 &&
+                        (y == 64 || y == 65) ? Material.BOOKSHELF : Material.AIR);
+                return block;
+            });
+            fixture.openTable();
+            String lore = String.join("\n", fixture.view.getTopInventory()
+                    .getItem(fixture.menu().layout.info).getItemMeta().getLore());
+            String plain = ChatColor.stripColor(lore);
+            if (enabled) {
+                assertTrue(plain.contains("Enlightened by 3/3 bookshelves"), plain);
+                assertTrue(lore.contains(ChatColor.GREEN + "3"));
+                assertTrue(lore.contains(ChatColor.GOLD + "3"));
+            } else {
+                assertTrue(plain.contains("Bookshelf pricing disabled"), plain);
+                assertFalse(plain.contains("0/"));
+                verify(fixture.world, never()).getBlockAt(anyInt(), anyInt(), anyInt());
+            }
+            verify(fixture.world, never()).loadChunk(anyInt(), anyInt());
+        }
+    }
+
     private final Map<String, Material> blocks = new HashMap<String, Material>();
     private final Set<String> queried = new HashSet<String>();
     private final Set<String> loaded = new HashSet<String>();

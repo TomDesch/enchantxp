@@ -59,6 +59,10 @@ final class MenuRenderer {
                 PurchaseQuote.read(player, session, enchantment, level, prices, shelves, countShelves) : null;
         MenuHolder holder = new MenuHolder(controller, layout, session, page, enchantment, level, index, pages, quote, count);
         Map<String, String> values = values(player, session, holder);
+        values.put("bookshelf-status", shelves.enabled() ?
+                "Enlightened by " + ChatColor.GREEN + countShelves + ChatColor.GRAY + "/" +
+                        ChatColor.GOLD + shelves.maximum() + ChatColor.GRAY + " bookshelves" :
+                "Bookshelf pricing disabled");
         Inventory inventory = Bukkit.createInventory(holder, layout.size, text.title(page, values));
         holder.attach(inventory);
         for (int slot = 0; slot < layout.size; slot++) {

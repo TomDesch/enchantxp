@@ -123,6 +123,9 @@ public final class MenuText {
             if (path.equals("ui.icons.sort.name") || path.equals("ui.icons.sort.lore")) {
                 allowed.add("sort");
             }
+            if (path.equals("ui.icons.info.name") || path.equals("ui.icons.info.lore")) {
+                allowed.add("bookshelf-status");
+            }
             if (path.startsWith("ui.titles.") || path.startsWith("ui.selection-")) {
                 allowed.removeAll(Arrays.asList("enchantment", "level", "current", "max", "cost"));
                 if (path.equals("ui.titles.item")) {

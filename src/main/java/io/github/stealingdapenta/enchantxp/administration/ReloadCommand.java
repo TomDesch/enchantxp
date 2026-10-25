@@ -2,7 +2,6 @@ package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.menu.TableMenus;
-
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -10,14 +9,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
@@ -28,13 +27,16 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.InventoryView;
 import org.bukkit.event.Listener;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitScheduler;
 
-/** One coordinator serializes reload, draft reads and staged saves. YAML stays on the server thread. */
+/**
+ * One coordinator serializes reload, draft reads and staged saves. YAML stays on the server thread.
+ */
 public final class ReloadCommand implements CommandExecutor, TabCompleter {
+
     static final String PERMISSION = "enchantxp.reload";
     private final Plugin plugin;
     private final TableMenus menus;
@@ -43,8 +45,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     private final BukkitScheduler scheduler;
     private final Logger logger;
     private final ConfigEditor editor;
-    private final ExecutorService cleanupExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<Runnable>(1), action -> {
+    private final ExecutorService cleanupExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(1), action -> {
         Thread thread = new Thread(action, "EnchantXP-config-cleanup");
         thread.setDaemon(true);
         return thread;
@@ -65,7 +66,8 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         this.settings = settings;
         this.file = file;
         this.store = store;
-        this.scheduler = plugin.getServer().getScheduler();
+        this.scheduler = plugin.getServer()
+                               .getScheduler();
         this.logger = plugin.getLogger();
         this.editor = new ConfigEditor(plugin, this);
     }
@@ -117,7 +119,8 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         if (sender.hasPermission(PERMISSION)) {
             commands.add("/enchantxp reload (console or in-game)");
         }
-        settings.text().send(sender, "reload-usage", Collections.singletonMap("commands", String.join(", ", commands)));
+        settings.text()
+                .send(sender, "reload-usage", Collections.singletonMap("commands", String.join(", ", commands)));
     }
 
     private void readReload(CommandSender sender, long request, Object owner) {
@@ -319,8 +322,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             boolean diskSaved = saved || failure instanceof ConfigFileStore.SavedException;
             if (!dispatch(() -> saveFailed(draft, ticket, failure, diskSaved), "save failure", ticket)) {
                 ticket.abort();
-                logger.log(Level.SEVERE, diskSaved ? "Saved, but not applied. Run /enchantxp reload." :
-                        "Cannot save EnchantXP settings", failure);
+                logger.log(Level.SEVERE, diskSaved ? "Saved, but not applied. Run /enchantxp reload." : "Cannot save EnchantXP settings", failure);
             }
         } finally {
             cleanup(staged);
@@ -416,8 +418,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean allowed(ConfigEditor.Draft draft) {
-        return active && editor.current(draft) && connected(draft.player) &&
-                draft.player.hasPermission(ConfigEditor.PERMISSION);
+        return active && editor.current(draft) && connected(draft.player) && draft.player.hasPermission(ConfigEditor.PERMISSION);
     }
 
     private boolean connected(CommandSender sender) {
@@ -425,7 +426,8 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         Player player = (Player) sender;
-        return player.isOnline() && plugin.getServer().getPlayer(player.getUniqueId()) == player;
+        return player.isOnline() && plugin.getServer()
+                                          .getPlayer(player.getUniqueId()) == player;
     }
 
     private void executeAsync(CommandSender sender, Runnable action, Object owner) {
@@ -454,7 +456,8 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
 
     private void failure(CommandSender sender, Exception failure) {
         logger.warning("Cannot reload " + file.getPath() + ": " + failure.getMessage());
-        settings.text().send(sender, "reload-failure", Collections.singletonMap("path", file.getPath()));
+        settings.text()
+                .send(sender, "reload-failure", Collections.singletonMap("path", file.getPath()));
     }
 
     private void release(Object owner) {
@@ -462,11 +465,13 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     }
 
     void status(CommandSender sender, String key, String detail) {
-        settings.text().send(sender, key, Collections.singletonMap("detail", detail == null ? "Check the server log." : detail));
+        settings.text()
+                .send(sender, key, Collections.singletonMap("detail", detail == null ? "Check the server log." : detail));
     }
 
     private void send(CommandSender sender, String key) {
-        settings.text().send(sender, key, Collections.emptyMap());
+        settings.text()
+                .send(sender, key, Collections.emptyMap());
     }
 
     public void disable() {
@@ -514,6 +519,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     }
 
     static final class SaveTicket {
+
         final AtomicBoolean aborted = new AtomicBoolean();
         final AtomicInteger workers = new AtomicInteger();
         final AtomicBoolean cleanupQueued = new AtomicBoolean();

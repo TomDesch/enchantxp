@@ -14,6 +14,8 @@ max-cost: 1000000
 # Without shelves, add the surcharge below. Each shelf reduces it toward zero.
 # Percentages: whole numbers, 0..1000000. Shelf limit: 1..15.
 # Prices round up after the surcharge; max-cost still applies.
+# Exact vanilla 1.12.2 scan: two blocks out, table height and one above,
+# with air in the intervening gap at both heights. No neighboring chunks load.
 bookshelf-pricing:
   enabled: true
   zero-shelf-penalty-percent: 150
@@ -140,6 +142,8 @@ items: {}
 # Level/confirm titles also accept enchantment/current/max; confirm adds level/cost.
 # Option/button tokens with no applicable selection render as blank.
 # {sort} is accepted only in the sort button name/lore.
+# {bookshelf-status} is accepted only in the balance/info name/lore:
+# effective current/configured maximum, or an honest disabled status.
 # Lore is a list of lines; [] clears it. Use a blank list entry for a blank line.
 # Leaving lore out of a configured icon makes it empty. Omit the whole icon to use defaults.
 # Leaving stage lore out of ui makes it empty. Omit ui entirely to use defaults.
@@ -241,6 +245,7 @@ ui:
       data: 0
       name: '&dBalance: &f{balance} XP'
       lore:
+        - '&7{bookshelf-status}'
         - '&7Page &f{page} &7of &f{pages}'
 
 # The prefix is added once to each message. Old {prefix} placeholders still work.
@@ -271,7 +276,7 @@ messages:
   reload-failure: '&cCould not reload {path}. Previous settings kept; check the server log.'
   config-denied: '&cYou need enchantxp.config.'
   config-player-only: '&eOpen the settings menu in-game with /enchantxp config.'
-  config-prompt: '&d{detail} &7Reply in chat. Type cancel to go back, or <blank> for empty text. Start with \ to use those words literally.'
+  config-prompt: '&d{detail} &7Reply in chat. Type cancel to go back.'
   config-error: '&c{detail}'
   config-saving: '&eSaving your settings. Please wait.'
   config-saved: '&aSettings saved and applied. A backup of the original file was kept.'

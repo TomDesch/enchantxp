@@ -2,6 +2,8 @@ package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemFlag;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.menu.ServerFixture;
 import static io.github.stealingdapenta.enchantxp.testsupport.YamlDocuments.yaml;
@@ -218,7 +220,7 @@ class ConfigEditorTest {
 
     @Test
     void commandCompletesEverySupportedSubcommandByPermissionAndNeverFallsBackToPlayers() {
-        assertEquals(Arrays.asList("config", "reload"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
+        assertEquals(Arrays.asList("help", "config", "reload"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
         assertEquals(Collections.singletonList("config"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{"CoN"}));
         assertEquals(Collections.singletonList("reload"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{"RE"}));
         for (String[] args : new String[][]{{"other"}, {"config", ""}, {"reload", ""}, {}}) {
@@ -228,7 +230,7 @@ class ConfigEditorTest {
         request("config");
         verify(fixture.player).sendMessage(contains("need enchantxp.config"));
         assertTrue(fixture.asyncTasks.isEmpty());
-        assertEquals(Collections.singletonList("reload"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
+        assertEquals(Arrays.asList("help", "reload"), coordinator.onTabComplete(fixture.player, command, "enchantxp", new String[]{""}));
         ConsoleCommandSender console = mock(ConsoleCommandSender.class);
         when(console.hasPermission(ConfigEditor.PERMISSION)).thenReturn(true);
         coordinator.onCommand(console, command, "enchantxp", new String[]{"config"});
@@ -712,7 +714,7 @@ class ConfigEditorTest {
         assertTrue(oversized.isCancelled());
         assertTrue(editor.current(previous));
         input("not a number");
-        verify(fixture.player).sendMessage(contains("whole number"));
+        verify(fixture.player, times(2)).sendMessage(contains("whole number"));
         input("cancel");
         assertSame(previous, draft());
         assertEquals(25, draft().document.getInt("base-xp"));
@@ -1096,6 +1098,102 @@ class ConfigEditorTest {
         fixture.click(fixture.confirmSlot(), ClickType.LEFT);
         fixture.tick();
         assertEquals(840, Experience.total(fixture.level, fixture.progress));
+    }
+
+    @Test
+    void typedPromptsNameExactBoundsAndSentinelsAndPreserveLiteralFormattingExamples() {
+        open();
+        clickNamed("General and prices");
+        clearInvocations(fixture.player);
+        clickNamed("Purchase limit");
+        verify(fixture.player).sendMessage(contains("Purchase limit (max-cost): Enter a whole number from 1 to 1000000 inclusive."));
+        verify(fixture.player).sendMessage(contains("Or -1 to disable"));
+        verify(fixture.player, never()).sendMessage(contains("<blank>"));
+        input("-1");
+        assertEquals(-1, draft().document.getInt("max-cost"));
+        editor.navigate(draft(), "enchant:LOOT_BONUS_BLOCKS");
+        clearInvocations(fixture.player);
+        clickNamed("Highest level");
+        verify(fixture.player).sendMessage(contains("whole number from 0 to 255 inclusive"));
+        verify(fixture.player).sendMessage(contains("70 is valid"));
+        input("256");
+        verify(fixture.player, times(2)).sendMessage(contains("whole number from 0 to 255 inclusive"));
+        input("cancel");
+        clearInvocations(fixture.player);
+        clickNamed("Display name");
+        verify(fixture.player).sendMessage(contains("<blank> for empty text"));
+        verify(fixture.player).sendMessage(contains("&5 purple, &6 gold, &l bold, &o italic, &r reset"));
+        input("\\cancel");
+        assertEquals("cancel", draft().document.getString("enchantments.LOOT_BONUS_BLOCKS.name"));
+        editor.navigate(draft(), "icon:confirm");
+        clearInvocations(fixture.player);
+        clickNamed("Item");
+        verify(fixture.player).sendMessage(contains("Blank is not allowed"));
+        verify(fixture.player, never()).sendMessage(contains("<blank>"));
+    }
+
+    @Test
+    void booleanStatusAndGlowFollowDraftAndNumbersContrastWithoutChangingInheritance() {
+        open();
+        clickNamed("Permissions");
+        ItemStack disabled = fixture.view.getTopInventory().getItem(findSlot("Check level permissions"));
+        assertTrue(disabled.getItemMeta().getLore().contains(ChatColor.GRAY + "" + ChatColor.RED + "Disabled"));
+        assertFalse(disabled.getItemMeta().hasEnchants());
+        clickNamed("Check level permissions");
+        ItemStack enabled = fixture.view.getTopInventory().getItem(findSlot("Check level permissions"));
+        assertTrue(enabled.getItemMeta().hasEnchant(Enchantment.DURABILITY));
+        assertTrue(enabled.getItemMeta().hasItemFlag(ItemFlag.HIDE_ENCHANTS));
+        String lore = String.join("\n", enabled.getItemMeta().getLore());
+        assertTrue(lore.contains(ChatColor.GREEN + "Enabled"));
+        assertTrue(lore.contains("Source: explicit override."));
+        assertFalse(lore.contains("Uses: true"));
+        editor.navigate(draft(), "enchant:DAMAGE_ALL");
+        ItemStack price = fixture.view.getTopInventory().getItem(findSlot("Starting price"));
+        assertTrue(String.join("\n", price.getItemMeta().getLore()).contains("Value: " + ChatColor.GOLD + "25"));
+        assertFalse(draft().document.contains("enchantments.DAMAGE_ALL.base-xp", true));
+    }
+
+    @Test
+    void namedListSortIsGlobalResetsPageAndRemainsPerDraftRouteWithNoHomeBack() {
+        open();
+        ConfigEditor.Draft owner = draft();
+        assertFalse(owner.view.entries.containsKey(ConfigEditor.BACK));
+        assertFalse(owner.view.entries.containsKey(ConfigEditor.SORT));
+        clickNamed("Enchantments");
+        click(ConfigEditor.NEXT, ClickType.LEFT);
+        assertEquals(1, draft().page);
+        click(ConfigEditor.SORT, ClickType.LEFT);
+        assertEquals(0, draft().page);
+        List<String> names = new ArrayList<>();
+        do {
+            for (int offset = 0; offset < 28; offset++) {
+                int slot = 10 + offset / 7 * 9 + offset % 7;
+                ConfigEditor.Entry entry = draft().view.entries.get(slot);
+                if (entry != null) {
+                    names.add(ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', entry.name)));
+                }
+            }
+            if (!draft().view.entries.containsKey(ConfigEditor.NEXT)) {
+                break;
+            }
+            click(ConfigEditor.NEXT, ClickType.LEFT);
+        } while (true);
+        List<String> expected = new ArrayList<>(names);
+        expected.sort(String.CASE_INSENSITIVE_ORDER);
+        assertEquals(30, names.size());
+        assertEquals(expected, names);
+        editor.navigate(owner, "messages");
+        assertFalse(owner.alphabetical.contains("messages"));
+        click(ConfigEditor.SORT, ClickType.LEFT);
+        assertTrue(owner.alphabetical.contains("messages"));
+        editor.navigate(owner, "enchants");
+        assertTrue(owner.alphabetical.contains("enchants"));
+        editor.navigate(owner, "items");
+        assertFalse(owner.view.entries.containsKey(ConfigEditor.SORT));
+        owner.document.set("items.DIAMOND_SWORD.max-levels.DAMAGE_ALL", 4);
+        editor.show(owner);
+        assertFalse(owner.view.entries.containsKey(ConfigEditor.SORT));
+        assertEquals(1, owner.document.getInt("config-version"));
     }
 
     private InventoryView foreignView(Player player) {

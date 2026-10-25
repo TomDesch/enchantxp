@@ -37,6 +37,14 @@ public final class BookshelfPricing {
         return new BookshelfPricing(false, 0, 0, 15);
     }
 
+    public boolean enabled() {
+        return enabled;
+    }
+
+    public int maximum() {
+        return maximum;
+    }
+
     private static int integer(ConfigurationSection config, ConfigurationSection defaults, String key, int min, int max) {
         String path = "bookshelf-pricing." + key;
         return ConfigValues.integer(ConfigValues.value(config, defaults, path), path, min, max);

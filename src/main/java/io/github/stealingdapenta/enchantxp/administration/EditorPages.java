@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -28,7 +29,25 @@ final class EditorPages {
         enchantmentEntries(result, draft);
         itemEntries(result, draft);
         appearanceEntries(result, draft);
+        if (draft.alphabetical.contains(draft.route) && sortable(draft, result)) {
+            result.sort((first, second) -> String.CASE_INSENSITIVE_ORDER.compare(sortName(first), sortName(second)));
+        }
         return result;
+    }
+
+    boolean sortable(Draft draft, List<Entry> entries) {
+        String route = draft.route;
+        int count = entries.size();
+        if (route.equals("items") || route.startsWith("item:")) {
+            count--;
+        } else if (!route.equals("enchants") && !route.equals("messages") && !route.startsWith("pick:")) {
+            return false;
+        }
+        return count > 1;
+    }
+
+    private String sortName(Entry entry) {
+        return ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', entry.name));
     }
 
     private void generalEntries(List<Entry> result, Draft draft) {
@@ -48,7 +67,7 @@ final class EditorPages {
             addFields(result, draft, fields.shelves());
         } else if (route.equals("permissions")) {
             addFields(result, draft, Collections.singletonList(ConfigFields.bool("permissions.enabled", "Check level permissions",
-                    "Off: everyone with enchantxp.use can buy. On: check each target level.")));
+                    "Off: enchantxp.use grants access subject to item and price rules. On: check the resolved exact target node, e.g. enchantxp.enchant.fortune.70. Parents enchantxp.enchant.fortune.* and enchantxp.enchant.* grant registered children. Inherited permissions and explicit negatives are resolved by Bukkit or your permissions plugin. Exact nodes default to op; ops can still be denied.")));
         } else if (route.equals("sounds")) {
             addFields(result, draft, Collections.singletonList(ConfigFields.bool("sounds.enabled", "Play sounds",
                     "Private feedback for the player using the menu.")));
@@ -76,8 +95,9 @@ final class EditorPages {
                                 editor.navigate(draft, "enchant:" + name);
                             } else {
                                 String path = "items." + material + ".max-levels." + name;
-                                editor.prompt(draft, "Highest level (0 disables, 1..255 sets a cap):", value -> {
-                                    draft.document.set(path, capField(path, fields.friendly(draft.document, name)).parse(value));
+                                ConfigFields.Field field = capField(path, fields.friendly(draft.document, name));
+                                editor.prompt(draft, field.prompt(), value -> {
+                                    draft.document.set(path, field.parse(value));
                                     draft.route = "item:" + material;
                                 });
                             }
@@ -87,7 +107,7 @@ final class EditorPages {
             String name = route.substring(8);
             addFields(result, draft, fields.enchantment(name));
             category(result, draft, "Level prices", Material.EXP_BOTTLE,
-                    "Optional cumulative totals for specific levels.", "levels:" + name);
+                    "Optional cumulative totals, not repeated charges. With base 100, level 2 is 400 and level 3 is 900. Override level 3 to 700: upgrading 2 to 3 costs 300 before shelves, not 700. Unspecified levels use base x level squared.", "levels:" + name);
         } else if (route.startsWith("levels:")) {
             String name = route.substring(7);
             String path = "enchantments." + name + ".levels";
@@ -102,8 +122,8 @@ final class EditorPages {
             }
             result.add(new Entry(Material.SLIME_BALL, "Add level price", Arrays.asList(
                     "Only the levels you add are overridden.", "Totals must rise at every level when you Apply."),
-                    () -> editor.prompt(draft, "Which level (1..255)?", input -> {
-                        int level = (Integer) ConfigFields.integer("", "", "", 1, 255).parse(input);
+                    () -> editor.prompt(draft, levelChoice().prompt(), input -> {
+                        int level = (Integer) levelChoice().parse(input);
                         draft.route = "level:" + name + ":" + level;
                     }), null));
         } else if (route.startsWith("level:")) {
@@ -176,7 +196,7 @@ final class EditorPages {
                 final int index = i;
                 result.add(new Entry(Material.PAPER, "Line " + (i + 1), Arrays.asList(
                         preview(lines.get(i)), "Left click to edit. Right click to delete."),
-                        () -> editor.prompt(draft, "New text for line " + (index + 1) + " (& colors work):", input -> {
+                        () -> editor.prompt(draft, ConfigFields.textPrompt("New text for line " + (index + 1), true), input -> {
                             List<String> changed = lines(draft, path);
                             changed.set(index, input);
                             draft.document.set(path, changed);
@@ -189,7 +209,7 @@ final class EditorPages {
                         }));
             }
             result.add(new Entry(Material.SLIME_BALL, "Add line", Arrays.asList("Use <blank> to add a blank line."),
-                    () -> editor.prompt(draft, "Text for the new line (& colors work):", input -> {
+                    () -> editor.prompt(draft, ConfigFields.textPrompt("Text for the new line", true), input -> {
                         List<String> changed = lines(draft, path);
                         if (changed.size() >= 256) {
                             throw new IllegalArgumentException("Keep lore to 256 lines or fewer.");
@@ -203,7 +223,12 @@ final class EditorPages {
     }
 
     private ConfigFields.Field capField(String path, String name) {
-        return ConfigFields.integer(path, name, "0 disables. Reset inherits the enchantment or vanilla cap.", 0, 255);
+        return ConfigFields.integer(path, name, "0 disables this purchase option. This item override replaces the enchantment or vanilla cap. Global disabled status, legality, price and permissions still restrict purchases. ENCHANTED_BOOK overrides BOOK; otherwise BOOK is the fallback. Reset inherits the enchantment or vanilla cap.", 0, 255);
+    }
+
+    private ConfigFields.Field levelChoice() {
+        return ConfigFields.integer("enchantments.NAME.levels", "Level to override",
+                "70 is valid; 255 is the hard bound. A configured max-cost can hide expensive options.", 1, 255);
     }
 
     private Object inheritedCap(Draft draft, String material, String name) {
@@ -223,7 +248,9 @@ final class EditorPages {
     }
 
     private void category(List<Entry> entries, Draft draft, String name, Material material, String help, String route) {
-        entries.add(new Entry(material, name, Arrays.asList(help, "Left click to open."), () -> editor.navigate(draft, route), null));
+        List<String> lore = new ArrayList<>(Arrays.asList(help.split("(?<=\\.)\\s+")));
+        lore.add("Left click to open.");
+        entries.add(new Entry(material, name, lore, () -> editor.navigate(draft, route), null));
     }
 
     private void addFields(List<Entry> entries, Draft draft, List<ConfigFields.Field> values) {
@@ -236,8 +263,9 @@ final class EditorPages {
         Object value = fields.effective(draft.document, field.path);
         boolean explicit = draft.document.contains(field.path, true);
         List<String> lore = new ArrayList<String>();
-        lore.add((explicit ? "Set to: " : "Uses: ") + preview(value instanceof List ? ((List<?>) value).size() + " lines" : String.valueOf(value)));
-        lore.add(field.help);
+        lore.add(valueLine(field, value));
+        lore.add(explicit ? "Source: explicit override." : "Source: inherited fallback.");
+        lore.addAll(Arrays.asList(field.help.split("(?<=\\.)\\s+")));
         if (field.path.startsWith("messages.")) {
             lore.add("& colors work here. Use <blank> to hide this text.");
         }
@@ -274,7 +302,7 @@ final class EditorPages {
             } else if (field.kind == ConfigFields.Kind.LINES) {
                 editor.navigate(draft, "lines:" + field.path);
             } else {
-                editor.prompt(draft, field.name + ": " + field.help, input -> draft.document.set(field.path, field.parse(input)));
+                editor.prompt(draft, field.prompt(), input -> draft.document.set(field.path, field.parse(input)));
             }
         }, () -> {
             // These two required prices have no inherited value.
@@ -284,7 +312,17 @@ final class EditorPages {
                 draft.document.set(field.path, null);
             }
             editor.show(draft);
-        }));
+        }, field.kind == ConfigFields.Kind.BOOLEAN && Boolean.TRUE.equals(value)));
+    }
+
+    private String valueLine(ConfigFields.Field field, Object value) {
+        if (field.kind == ConfigFields.Kind.BOOLEAN) {
+            return Boolean.TRUE.equals(value) ? "&aEnabled" : "&cDisabled";
+        }
+        if (field.kind == ConfigFields.Kind.INTEGER || field.kind == ConfigFields.Kind.DECIMAL) {
+            return "&7Value: &6" + value;
+        }
+        return "Value: " + preview(value instanceof List ? ((List<?>) value).size() + " lines" : String.valueOf(value));
     }
 
     private List<String> lines(Draft draft, String path) {
