@@ -365,12 +365,12 @@ final class ConfigEditor implements Listener {
             draft.transition = false;
             // Opening fires synchronous listeners that can cancel, invalidate or replace this draft.
             if (!permitted(draft) || draft.view != holder || opened == null ||
-                    opened.getTopInventory() != inventory ||
-                    draft.player.getOpenInventory().getTopInventory() != inventory) {
+                    opened.getTopInventory().getHolder() != holder ||
+                    draft.player.getOpenInventory().getTopInventory().getHolder() != holder) {
                 if (drafts.get(draft.owner) == draft) {
                     discard(draft.player);
                 }
-                if (draft.player.getOpenInventory().getTopInventory() == inventory) {
+                if (draft.player.getOpenInventory().getTopInventory().getHolder() == holder) {
                     draft.player.closeInventory();
                 }
             }
