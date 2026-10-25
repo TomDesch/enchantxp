@@ -19,7 +19,14 @@ import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.PluginManager;
 
 /**
- * Queries only the resolved exact leaf; wildcard and negative precedence belong to the server.
+ * Optional target-level access, separate from the menu's enchantxp.use admission check.
+ * When enabled, a purchase of Sharpness IV checks enchantxp.enchant.sharpness.4 only; levels I-III are not prerequisites.
+ * Display names never change these stable nodes.
+ *
+ * The registry links enchantxp.enchant.* to enchantment parents such as enchantxp.enchant.sharpness.*, then links those parents to their effective levels.
+ * Exact leaves default to OP and parents default to FALSE.
+ * All decisions use Player.hasPermission on the exact leaf: Bukkit or the installed permissions plugin resolves inheritance, attachments and negatives.
+ * There is no manual wildcard or OP bypass.
  */
 public final class EnchantPermissions {
 
@@ -55,6 +62,7 @@ public final class EnchantPermissions {
         return new EnchantPermissions(false);
     }
 
+    /** Disabling level permissions skips only this check, not item, price or menu access rules. */
     public boolean allows(Player player, Enchantment enchantment, int level) {
         return !enabled || player.hasPermission(leaf(enchantment, level));
     }
@@ -64,7 +72,10 @@ public final class EnchantPermissions {
     }
 
     /**
-     * Retained owned nodes grow on valid cap raises; lowering/off only changes purchase policy.
+     * Owns dynamically registered nodes until shutdown.
+     * Valid cap raises add children and recalculate existing subscribers; lowering caps or turning checks off retains the graph, while purchase policy still filters offers.
+     * Candidate validation rejects foreign nodes.
+     * Failed publication restores child maps and removes newly added owned instances.
      */
     public static final class Registry {
 
@@ -169,6 +180,7 @@ public final class EnchantPermissions {
             }
         }
 
+        /** Removes owned registrations and legacy defaults without deleting foreign replacements. */
         public void shutdown() {
             remove(new ArrayList<>(owned.values()));
         }
