@@ -154,7 +154,9 @@ replacement and readback. Filesystems without atomic replacement are rejected;
 there is no non-atomic fallback. At most two owned regular UUID-named backups
 are retained, newest first by creation time. A save prunes older ones before
 creating another, including failed/cancelled attempts; the latest recoverable
-generation stays available. Retention errors abort with an explicit failure.
+generation stays available. Backup bytes are staged before atomic publication, so
+failed writes cannot masquerade as a newer recoverable generation.
+Retention errors abort with an explicit failure.
 Unrelated names and symbolic links/reparse entries are not cleaned.
 Explicit saving may normalize YAML formatting and remove comments. Opening,
 editing, discarding and reloading never rewrite the file.

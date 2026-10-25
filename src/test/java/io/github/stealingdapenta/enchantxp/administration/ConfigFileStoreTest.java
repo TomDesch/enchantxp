@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
 
 class ConfigFileStoreTest {
     private Path directory;
@@ -101,6 +102,25 @@ class ConfigFileStoreTest {
         assertEquals(2, backups().size());
         assertTrue(Files.exists(latest));
         assertEquals("second", new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void failedBackupPublicationNeverLeavesAPartialOwnedGenerationOrDeletesLatestRecovery() throws Exception {
+        byte[] hash = ConfigFileStore.hash(Files.readAllBytes(file));
+        store.commit(store.stage("first", hash), hash, "first", () -> true);
+        hash = ConfigFileStore.hash(Files.readAllBytes(file));
+        Path latest = store.commit(store.stage("second", hash), hash, "second", () -> true);
+        doThrow(new IOException("backup publication unavailable")).when(store).publishBackup(any(Path.class), any(Path.class));
+        byte[] finalHash = ConfigFileStore.hash(Files.readAllBytes(file));
+        Path staged = store.stage("third", finalHash);
+        assertThrows(IOException.class, () -> store.commit(staged, finalHash, "third", () -> true));
+        assertEquals(1, backups().size());
+        assertTrue(Files.exists(latest));
+        assertEquals("first", new String(Files.readAllBytes(latest), StandardCharsets.UTF_8));
+        assertEquals("second", new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
+        try (Stream<Path> children = Files.list(directory)) {
+            assertEquals(1, children.filter(path -> path.getFileName().toString().contains(".stage-")).count());
+        }
     }
 
     private List<Path> backups() throws IOException {

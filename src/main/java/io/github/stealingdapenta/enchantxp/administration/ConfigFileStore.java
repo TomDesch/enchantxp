@@ -88,20 +88,7 @@ class ConfigFileStore {
         byte[] original = unchanged(expectedHash);
         retainLatestBackup();
         Path backup = sibling(".backup-");
-        boolean created = false;
-        try (OutputStream output = Files.newOutputStream(backup, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            created = true;
-            output.write(original);
-        } catch (IOException failure) {
-            if (created) {
-                try {
-                    Files.deleteIfExists(backup);
-                } catch (IOException cleanupFailure) {
-                    failure.addSuppressed(cleanupFailure);
-                }
-            }
-            throw failure;
-        }
+        writeBackup(original, backup);
         if (!beginCommit.getAsBoolean()) {
             throw new IOException("Save cancelled before replacing config.yml.");
         }
@@ -115,6 +102,34 @@ class ConfigFileStore {
             throw new SavedException("Saved file could not be verified; backup: " + backup.getFileName(), failure);
         }
         return backup;
+    }
+
+    private void writeBackup(byte[] original, Path backup) throws IOException {
+        Path candidate = sibling(".stage-");
+        boolean created = false;
+        try {
+            try (OutputStream output = Files.newOutputStream(candidate, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                created = true;
+                output.write(original);
+            }
+            publishBackup(candidate, backup);
+        } catch (IOException failure) {
+            if (created) {
+                try {
+                    delete(candidate);
+                } catch (IOException cleanupFailure) {
+                    failure.addSuppressed(cleanupFailure);
+                }
+            }
+            throw failure;
+        }
+    }
+
+    void publishBackup(Path candidate, Path backup) throws IOException {
+        if (Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Refusing to replace an existing config backup: " + backup.getFileName());
+        }
+        Files.move(candidate, backup, StandardCopyOption.ATOMIC_MOVE);
     }
 
     // Prune before creating, so failed/cancelled attempts cannot grow an unbounded archive.
