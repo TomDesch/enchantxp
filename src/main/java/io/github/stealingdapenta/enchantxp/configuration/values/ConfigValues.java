@@ -1,7 +1,7 @@
 package io.github.stealingdapenta.enchantxp.configuration.values;
 
-import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -12,13 +12,13 @@ import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 public final class ConfigValues {
+
     private ConfigValues() {
     }
 
     public static YamlConfiguration defaults() {
         YamlConfiguration defaults = new YamlConfiguration();
-        try (InputStreamReader reader = new InputStreamReader(
-                ConfigValues.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8)) {
+        try (InputStreamReader reader = new InputStreamReader(ConfigValues.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8)) {
             defaults.load(reader);
         } catch (IOException | InvalidConfigurationException failure) {
             throw new IllegalStateException("Cannot read packaged config.yml", failure);
@@ -65,12 +65,20 @@ public final class ConfigValues {
         if (section == null) {
             return;
         }
-        Set<String> names = new HashSet<String>(Arrays.asList(allowed));
+        Set<String> names = new HashSet<>(Arrays.asList(allowed));
         for (String key : section.getKeys(false)) {
             if (!names.contains(key)) {
                 throw new IllegalArgumentException(section.getCurrentPath() + "." + key + " is unknown");
             }
         }
+    }
+
+    public static ConfigurationSection requiredSection(ConfigurationSection config, String path) {
+        ConfigurationSection section = section(config, path);
+        if (section == null) {
+            throw new IllegalArgumentException(path + " must be a section");
+        }
+        return section;
     }
 
     public static Material material(Object value, String path) {

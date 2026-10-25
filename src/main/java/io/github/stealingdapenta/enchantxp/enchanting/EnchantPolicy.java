@@ -9,18 +9,21 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.enchantments.Enchantment;
 
-/** Immutable purchase limits; disabling purchases never strips existing vanilla enchants. */
+/**
+ * Immutable purchase limits; disabling purchases never strips existing vanilla enchants.
+ */
 public final class EnchantPolicy {
+
     public static final int MAX_LEVEL = 255;
+    private static final String MAX_LEVEL_KEY = "max-level";
     private final Map<String, Integer> limits;
     private final Map<String, Boolean> enabled;
     private final Map<Material, Map<String, Integer>> items;
 
-    private EnchantPolicy(Map<String, Integer> limits, Map<String, Boolean> enabled,
-            Map<Material, Map<String, Integer>> items) {
-        this.limits = Collections.unmodifiableMap(new HashMap<String, Integer>(limits));
-        this.enabled = Collections.unmodifiableMap(new HashMap<String, Boolean>(enabled));
-        this.items = Collections.unmodifiableMap(new HashMap<Material, Map<String, Integer>>(items));
+    private EnchantPolicy(Map<String, Integer> limits, Map<String, Boolean> enabled, Map<Material, Map<String, Integer>> items) {
+        this.limits = Collections.unmodifiableMap(new HashMap<>(limits));
+        this.enabled = Collections.unmodifiableMap(new HashMap<>(enabled));
+        this.items = Collections.unmodifiableMap(new HashMap<>(items));
     }
 
     public static EnchantPolicy vanilla() {
@@ -28,14 +31,19 @@ public final class EnchantPolicy {
     }
 
     public static EnchantPolicy read(ConfigurationSection config) {
-        Map<String, Integer> limits = new HashMap<String, Integer>();
-        Map<String, Boolean> enabled = new HashMap<String, Boolean>();
+        Map<String, Integer> limits = new HashMap<>();
+        Map<String, Boolean> enabled = new HashMap<>();
+        readEnchantments(config, limits, enabled);
+        return new EnchantPolicy(limits, enabled, readItems(config));
+    }
+
+    private static void readEnchantments(ConfigurationSection config, Map<String, Integer> limits, Map<String, Boolean> enabled) {
         ConfigurationSection enchants = ConfigValues.section(config, "enchantments");
         if (enchants != null) {
             for (String name : enchants.getKeys(false)) {
                 requireName(name, "enchantments." + name);
-                ConfigurationSection enchant = ConfigValues.section(config, "enchantments." + name);
-                ConfigValues.keys(enchant, "name", "enabled", "max-level", "base-xp", "levels");
+                ConfigurationSection enchant = ConfigValues.requiredSection(config, "enchantments." + name);
+                ConfigValues.keys(enchant, "name", "enabled", MAX_LEVEL_KEY, "base-xp", "levels");
                 if (enchant.contains("enabled", true)) {
                     Object value = enchant.get("enabled");
                     if (!(value instanceof Boolean)) {
@@ -43,21 +51,24 @@ public final class EnchantPolicy {
                     }
                     enabled.put(name, (Boolean) value);
                 }
-                if (enchant.contains("max-level", true)) {
-                    limits.put(name, cap(enchant.get("max-level"), name, enchant.getCurrentPath() + ".max-level"));
+                if (enchant.contains(MAX_LEVEL_KEY, true)) {
+                    limits.put(name, cap(enchant.get(MAX_LEVEL_KEY), name, enchant.getCurrentPath() + "." + MAX_LEVEL_KEY));
                 }
             }
         }
-        Map<Material, Map<String, Integer>> items = new HashMap<Material, Map<String, Integer>>();
+    }
+
+    private static Map<Material, Map<String, Integer>> readItems(ConfigurationSection config) {
+        Map<Material, Map<String, Integer>> items = new HashMap<>();
         ConfigurationSection configuredItems = ConfigValues.section(config, "items");
         if (configuredItems != null) {
             for (String materialName : configuredItems.getKeys(false)) {
                 String path = "items." + materialName;
                 Material material = ConfigValues.material(materialName, path);
-                ConfigurationSection item = ConfigValues.section(config, path);
+                ConfigurationSection item = ConfigValues.requiredSection(config, path);
                 ConfigValues.keys(item, "max-levels");
                 ConfigurationSection caps = ConfigValues.section(config, path + ".max-levels");
-                Map<String, Integer> values = new HashMap<String, Integer>();
+                Map<String, Integer> values = new HashMap<>();
                 if (caps != null) {
                     for (String name : caps.getKeys(false)) {
                         requireName(name, caps.getCurrentPath() + "." + name);
@@ -67,7 +78,7 @@ public final class EnchantPolicy {
                 items.put(material, Collections.unmodifiableMap(values));
             }
         }
-        return new EnchantPolicy(limits, enabled, items);
+        return items;
     }
 
     public int maximum(Material material, Enchantment enchantment) {
@@ -102,7 +113,8 @@ public final class EnchantPolicy {
     }
 
     static void requireName(String name, String path) {
-        if (!Enchantments.names().contains(name)) {
+        if (!Enchantments.names()
+                         .contains(name)) {
             throw new IllegalArgumentException(path + " is not a vanilla 1.12.2 enchantment name");
         }
     }
