@@ -103,7 +103,7 @@ class ConfigEditorTest {
     @AfterEach
     void cleanUp() throws Exception {
         coordinator.disable();
-        assertTrue(coordinator.awaitCleanup(5, TimeUnit.SECONDS));
+        assertTrue(coordinator.awaitCleanup());
         try (Stream<Path> files = Files.list(directory)) {
             for (Path path : files.collect(Collectors.toList())) {
                 Files.delete(path);
@@ -830,6 +830,16 @@ class ConfigEditorTest {
     }
 
     @Test
+    void deletingADuplicateLoreLineRemovesItsPositionRatherThanTheFirstEqualValue() throws Exception {
+        open();
+        draft().document.set("ui.icons.fill.lore", Arrays.asList("same", "middle", "same"));
+        draft().route = "lines:ui.icons.fill.lore";
+        editor.resume(fixture.player);
+        click(findSlot("Line 3"), ClickType.RIGHT);
+        assertEquals(Arrays.asList("same", "middle"), draft().document.getStringList("ui.icons.fill.lore"));
+    }
+
+    @Test
     void togglesSoundNumbersAndLegacyIconFieldsEditThroughTheMenuAndSaveTogether() throws Exception {
         open();
         clickNamed("Sounds");
@@ -978,7 +988,7 @@ class ConfigEditorTest {
             ConfigEditor.Draft previous = draft();
             coordinator.save(previous);
             worker();
-            Path staged = previous.ticket.staged;
+            Path staged = previous.ticket.stagedPath();
             assertTrue(Files.exists(staged));
             if (gateAlreadyRan) {
                 fixture.tick();
@@ -990,7 +1000,7 @@ class ConfigEditorTest {
             }).when(fixture.scheduler).cancelTasks(fixture.plugin);
             coordinator.disable();
             fixture.menus.shutdown();
-            assertTrue(coordinator.awaitCleanup(5, TimeUnit.SECONDS));
+            assertTrue(coordinator.awaitCleanup());
             assertTrue(previous.ticket.cleanupDone.await(5, TimeUnit.SECONDS));
             assertFalse(Files.exists(staged));
             assertEquals(ORIGINAL, contents());
@@ -1026,7 +1036,7 @@ class ConfigEditorTest {
             assertEquals(1, children(".stage-").size());
             coordinator.disable();
             fixture.menus.shutdown();
-            assertTrue(coordinator.awaitCleanup(5, TimeUnit.SECONDS));
+            assertTrue(coordinator.awaitCleanup());
             finishStage.countDown();
             future.get(5, TimeUnit.SECONDS);
             assertTrue(previous.ticket.cleanupDone.await(5, TimeUnit.SECONDS));
@@ -1058,7 +1068,7 @@ class ConfigEditorTest {
             assertFalse(Settings.read(draft().document).text().lore(target[2], Collections.emptyMap()).isEmpty());
             String help = ChatColor.stripColor(String.join(" ", fixture.view.getTopInventory().getItem(findSlot(target[1])).getItemMeta().getLore()));
             assertTrue(help.contains("shipped lore"));
-            assertTrue(help.contains("Right click to reset to default."));
+            assertTrue(help.contains("Right-click to reset to default."));
         }
     }
 
@@ -1097,7 +1107,7 @@ class ConfigEditorTest {
         assertTrue(footer.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("Go: Close without saving your draft.")));
         assertTrue(footer.stream().anyMatch(line -> line.contains(ChatColor.GREEN.toString())));
         ItemStack tableInput = Settings.read(draft().document).text().icon("instructions", Collections.emptyMap());
-        assertEquals("Go: Left click one compatible item below.", ChatColor.stripColor(tableInput.getItemMeta().getLore().get(0)));
+        assertEquals("Go: Left-click one compatible item below.", ChatColor.stripColor(tableInput.getItemMeta().getLore().get(0)));
         clickNamed("Action prefix");
         input("<blank>");
         footer = fixture.view.getTopInventory().getItem(ConfigEditor.DISCARD).getItemMeta().getLore();
@@ -1160,7 +1170,7 @@ class ConfigEditorTest {
         assertFalse(percentage.name.contains("%"));
         List<String> lore = fixture.view.getTopInventory().getItem(findSlot(percentage.name)).getItemMeta().getLore();
         assertTrue(lore.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("Value: 10%")));
-        assertTrue(lore.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("\u00bb Right click to reset to default.")));
+        assertTrue(lore.stream().map(ChatColor::stripColor).anyMatch(line -> line.equals("\u00bb Right-click to reset to default.")));
     }
 
     @Test

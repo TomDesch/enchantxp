@@ -80,8 +80,8 @@ final class EnchantTransaction {
 
     private static boolean selectedContext(Player player, EnchantSession session, BooleanSupplier context) {
         return context.getAsBoolean() && session.hasSelection() && session.owner.equals(player.getUniqueId()) && player.getInventory()
-                                                                                                                   .getHeldItemSlot() == session.heldSlot && session.matches(player.getInventory()
-                                                                                                                                                                                 .getItem(session.slot));
+                                                                                                                       .getHeldItemSlot() == session.heldSlot && session.matches(player.getInventory()
+                                                                                                                                                                                       .getItem(session.slot));
     }
 
     private boolean canPurchase(Player player, ItemStack original, Enchantment enchantment, int current, int level) {
@@ -145,7 +145,7 @@ final class EnchantTransaction {
 
     private static void requireOutputSpace(Player player, EnchantSession session, PreparedOutput output) {
         if (output.split(session) && !empty(player.getInventory()
-                                                 .getItem(output.destination))) {
+                                                  .getItem(output.destination))) {
             session.claim();
             throw new OutputSpaceException();
         }
@@ -193,8 +193,11 @@ final class EnchantTransaction {
         return true;
     }
 
+    /**
+     * Refunds only after readback proves the enchanted result is gone; uncertain output retains consumed resources.
+     * Split-book output is cleared before the source stack is restored, avoiding duplicate books on setter failure.
+     */
     private static void compensate(Player player, EnchantSession session, PreparedOutput output, Experience.Balance before, RuntimeException failure) {
-        // Compensation must prove the result is gone before returning consumed resources.
         boolean split = output.split(session);
         boolean safeToRefund = split ? rollbackOutput(player, output.destination, output.previous, failure) : rollbackSource(player, session, output.original, failure);
         if (!safeToRefund) {

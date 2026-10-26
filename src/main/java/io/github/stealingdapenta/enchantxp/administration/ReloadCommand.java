@@ -43,6 +43,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     private static final String RELOAD_SUBCOMMAND = "reload";
     private static final String HELP_SUBCOMMAND = "help";
     private static final String CONFIG_ERROR = "config-error";
+    private static final int CLEANUP_TEST_TIMEOUT_SECONDS = 5;
     private final Plugin plugin;
     private final TableMenus menus;
     private final File file;
@@ -61,6 +62,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     private long operation;
     private long generation;
 
+    /** Binds server-thread controllers to one config file; construction starts no I/O and registers no listener. */
     public ReloadCommand(Plugin plugin, TableMenus menus, Settings settings, File file) {
         this(plugin, menus, settings, file, new ConfigFileStore(file.toPath()));
     }
@@ -81,10 +83,15 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         return editor;
     }
 
+    /** Returns this coordinator's single editor listener for Bukkit registration. */
     public Listener editorListener() {
         return editor;
     }
 
+    /**
+     * Handles help, editor and reload requests on the server thread; rechecks access before asynchronous publication.
+     * Returns true because this controller owns all usage and error feedback.
+     */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         requireMainThread();
@@ -238,7 +245,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     void save(ConfigEditor.Draft draft) {
         requireMainThread();
         Player player = draft.player;
-        if (!allowed(draft)) {
+        if (unavailable(draft)) {
             status(player, CONFIG_ERROR, "This draft has expired or your access changed. Reopen /enchantxp config.");
             return;
         }
@@ -300,7 +307,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
     private void gate(ConfigEditor.Draft draft, SaveTicket ticket, String contents, Settings replacement, Path staged) {
         requireMainThread();
         try {
-            if (!allowed(draft) || ticket.aborted.get() || draft.generation != generation) {
+            if (unavailable(draft) || ticket.aborted.get() || draft.generation != generation) {
                 ticket.abort();
                 throw new IllegalStateException("Save cancelled: your draft, connection or access changed.");
             }
@@ -348,7 +355,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         requireMainThread();
         boolean applied = false;
         try {
-            if (!allowed(draft) || ticket.aborted.get()) {
+            if (unavailable(draft) || ticket.aborted.get()) {
                 throw new IllegalStateException("Requester disconnected, cancelled or lost access after disk save");
             }
             menus.replace(replacement, () -> active);
@@ -405,11 +412,15 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
                     }
                 });
             } catch (RuntimeException failure) {
-                logger.log(Level.SEVERE, "Could not schedule cleanup of staged EnchantXP config " + ticket.staged, failure);
+                logger.log(Level.SEVERE, failure, () -> "Could not schedule cleanup of staged EnchantXP config " + ticket.staged);
             }
         }
     }
 
+    /**
+     * Finishes an aborted ticket only after its worker fence permits deletion.
+     * Identity-based release cannot free a newer reload or save; repeated owned-file deletion is harmless.
+     */
     private void cleanupTicket(SaveTicket ticket) {
         cleanup(ticket.staged);
         ticket.cleaned = true;
@@ -426,8 +437,8 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         return Settings.read(candidate);
     }
 
-    private boolean allowed(ConfigEditor.Draft draft) {
-        return active && editor.current(draft) && connected(draft.player) && draft.player.hasPermission(ConfigEditor.PERMISSION);
+    private boolean unavailable(ConfigEditor.Draft draft) {
+        return !active || !editor.current(draft) || !connected(draft.player) || !draft.player.hasPermission(ConfigEditor.PERMISSION);
     }
 
     private boolean connected(CommandSender sender) {
@@ -458,7 +469,7 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
             return true;
         } catch (RuntimeException failure) {
             release(owner);
-            logger.log(Level.SEVERE, "Cannot schedule EnchantXP " + label, failure);
+            logger.log(Level.SEVERE, failure, () -> "Cannot schedule EnchantXP " + label);
             return false;
         }
     }
@@ -483,6 +494,10 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
                 .send(sender, key, Collections.emptyMap());
     }
 
+    /**
+     * Stops new work and invalidates drafts on the server thread, without waiting for file I/O.
+     * Aborted workers retain their ticket until they actually finish; late cleanup cannot unlock a newer operation.
+     */
     public void disable() {
         requireMainThread();
         active = false;
@@ -499,10 +514,11 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         // An in-progress worker retains ownership until it actually finishes.
     }
 
-    boolean awaitCleanup(long timeout, TimeUnit unit) throws InterruptedException {
-        return cleanupExecutor.awaitTermination(timeout, unit);
+    boolean awaitCleanup() throws InterruptedException {
+        return cleanupExecutor.awaitTermination(CLEANUP_TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
+    /** Lists only permitted command prefixes while active; the editor is suggested only to in-game senders. */
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> result = new ArrayList<>();
@@ -533,9 +549,19 @@ public final class ReloadCommand implements CommandExecutor, TabCompleter {
         final AtomicInteger workers = new AtomicInteger();
         final AtomicBoolean cleanupQueued = new AtomicBoolean();
         final CountDownLatch cleanupDone = new CountDownLatch(1);
-        volatile Path staged;
+        /**
+         * Published once by the staging worker; never reassigned or cleared.
+         * `volatile` publishes that immutable path, not ownership of its file.
+         * `workers` fences deletion until active I/O ends; abort is permanent and `busy`
+         * uses ticket identity so late callbacks cannot release a newer operation.
+         */
+        private volatile Path staged;
         volatile boolean cleaned;
         private final AtomicBoolean started = new AtomicBoolean();
+
+        Path stagedPath() {
+            return staged;
+        }
 
         void abort() {
             aborted.set(true);

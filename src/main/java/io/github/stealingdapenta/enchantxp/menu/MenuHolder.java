@@ -40,7 +40,9 @@ final class MenuHolder implements InventoryHolder {
         this.quote = quote;
     }
 
-    /** A requested stage and target; pagination clamps the requested page before publication. */
+    /**
+     * A requested stage and target; pagination clamps the requested page before publication.
+     */
     static final class Route {
 
         final MenuStage stage;
@@ -76,6 +78,7 @@ final class MenuHolder implements InventoryHolder {
         this.inventory = inventory;
     }
 
+    /** Returns the once-attached inventory; null only while this unpublished holder is being built. */
     @Override
     public Inventory getInventory() {
         return inventory;

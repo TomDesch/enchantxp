@@ -9,6 +9,9 @@ import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
+/**
+ * Immutable legacy feedback effects, sent privately rather than broadcast into the world.
+ */
 public final class MenuSounds {
 
     private static final float MAX_VOLUME = 4;
@@ -22,6 +25,11 @@ public final class MenuSounds {
         this.effects = Collections.unmodifiableMap(new HashMap<>(effects));
     }
 
+    /**
+     * Reads optional legacy effects; an empty sound name means silence, volume is `0..4`, pitch is `0..2`.
+     *
+     * @throws IllegalArgumentException with the path for unknown keys, names or invalid numeric settings
+     */
     public static MenuSounds read(ConfigurationSection config) {
         ConfigurationSection defaults = ConfigValues.defaults();
         ConfigValues.keys(ConfigValues.section(config, "sounds"), "enabled", "click", "success", "insufficient");
@@ -61,6 +69,7 @@ public final class MenuSounds {
         return (float) number;
     }
 
+    /** Plays a known effect key (`click`, `success`, `insufficient`) privately on the server thread, unless silent or disabled. */
     public void play(Player player, String key) {
         Effect effect = effects.get(key);
         if (enabled && effect.sound != null) {

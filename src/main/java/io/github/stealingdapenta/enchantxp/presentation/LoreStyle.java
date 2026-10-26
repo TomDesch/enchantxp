@@ -14,8 +14,11 @@ import java.util.regex.Pattern;
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.ConfigurationSection;
 
-/** Explicit lore roles shared by table templates and operator pages, never inferred from prose. */
+/**
+ * Explicit lore roles shared by table templates and operator pages, never inferred from prose.
+ */
 public final class LoreStyle {
+
     public static final String PATH = "lore-style";
     public static final int MAX_PREFIX_LENGTH = 16;
     private static final String ACTION_MARKER = "{action}";
@@ -28,6 +31,11 @@ public final class LoreStyle {
         this.roles = Collections.unmodifiableMap(new HashMap<>(roles));
     }
 
+    /**
+     * Reads explicit lore roles with independent base colors and optional packaged fallbacks.
+     *
+     * @throws IllegalArgumentException with a path for unknown keys, invalid codes or an oversized prefix
+     */
     public static LoreStyle read(ConfigurationSection config) {
         ConfigurationSection allDefaults = ConfigValues.defaults();
         ConfigurationSection defaults = allDefaults.getConfigurationSection(PATH);
@@ -61,6 +69,12 @@ public final class LoreStyle {
         return new LoreStyle(roles);
     }
 
+    /**
+     * Validates a known role setting without translating its ampersand codes.
+     * The action prefix allows at most 16 visible characters and no placeholders or line breaks.
+     *
+     * @throws IllegalArgumentException for invalid prefix text or non-color role contents
+     */
     public static String validateSetting(String key, String value) {
         if (key.equals("action-prefix")) {
             if (value.contains("{") || value.contains("}") || value.contains("\n") || value.contains("\r")) {
@@ -90,14 +104,17 @@ public final class LoreStyle {
         return MARKERS;
     }
 
+    /** Marks an instruction explicitly for shared action styling; does not inspect its English wording. */
     public static String action(String instruction) {
         return ACTION_MARKER + instruction;
     }
 
+    /** Builds a label/text role pair; editor rendering keeps placeholder-like content in the value literal. */
     public static String info(String label, Object value) {
         return "{label}" + label + ": {text}" + value;
     }
 
+    /** Builds a label/number role pair; callers supply the value and any units, without numeric coercion. */
     public static String number(String label, Object value) {
         return "{label}" + label + ": {number}" + value;
     }
@@ -112,7 +129,10 @@ public final class LoreStyle {
         return output.toString();
     }
 
-    /** Operator previews remain literal, including braces and ampersand formatting examples. */
+    /**
+     * Returns fresh wrapped operator lore with explicit leading roles, preserving literal preview values.
+     * Braces and ampersand formatting examples inside values are never interpreted; wrapping carries legacy colors.
+     */
     public List<String> editorLines(List<String> templates) {
         List<String> result = new ArrayList<>();
         for (String template : templates) {
@@ -120,12 +140,15 @@ public final class LoreStyle {
             String base = startsWithResetRole(template) ? "" : roles.get("text");
             String prefix = base + (action ? roles.get("action") : "");
             String remaining = action ? template.substring(ACTION_MARKER.length()) : editorFormat(template);
-            int width = Math.max(1, WRAP_WIDTH - ChatColor.stripColor(prefix).length());
-            while (ChatColor.stripColor(remaining).length() > width) {
+            int width = Math.max(1, WRAP_WIDTH - ChatColor.stripColor(prefix)
+                                                          .length());
+            while (ChatColor.stripColor(remaining)
+                            .length() > width) {
                 int split = wrapAt(remaining, width);
                 String line = remaining.substring(0, split);
                 result.add(prefix + line);
-                remaining = ChatColor.getLastColors(prefix + line) + remaining.substring(split).trim();
+                remaining = ChatColor.getLastColors(prefix + line) + remaining.substring(split)
+                                                                              .trim();
             }
             result.add(prefix + remaining);
         }
@@ -134,7 +157,8 @@ public final class LoreStyle {
 
     private boolean startsWithResetRole(String template) {
         Matcher marker = MARKER.matcher(template);
-        return marker.lookingAt() && roles.get(marker.group(1)).startsWith(ChatColor.RESET.toString());
+        return marker.lookingAt() && roles.get(marker.group(1))
+                                          .startsWith(ChatColor.RESET.toString());
     }
 
     private String editorFormat(String template) {

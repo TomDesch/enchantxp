@@ -37,28 +37,22 @@ final class ConfigFields {
         final String name;
         final String help;
         final Kind kind;
-        final double minimum;
-        final double maximum;
-        private final Integer sentinel;
-        private final String unit;
+        private final NumericInput numeric;
 
         Field(String path, String name, String help, Kind kind, double minimum, double maximum) {
-            this(path, name, help, kind, minimum, maximum, null);
+            this(path, name, help, kind, new NumericInput(minimum, maximum, null, ""));
         }
 
         Field(String path, String name, String help, Kind kind, double minimum, double maximum, Integer sentinel) {
-            this(path, name, help, kind, minimum, maximum, sentinel, "");
+            this(path, name, help, kind, new NumericInput(minimum, maximum, sentinel, ""));
         }
 
-        Field(String path, String name, String help, Kind kind, double minimum, double maximum, Integer sentinel, String unit) {
+        Field(String path, String name, String help, Kind kind, NumericInput numeric) {
             this.path = path;
             this.name = name;
             this.help = help;
             this.kind = kind;
-            this.minimum = minimum;
-            this.maximum = maximum;
-            this.sentinel = sentinel;
-            this.unit = unit;
+            this.numeric = numeric;
         }
 
         Object parse(String input) {
@@ -87,9 +81,10 @@ final class ConfigFields {
             }
             switch (kind) {
                 case INTEGER:
-                    return setting + "Enter a whole number from " + display((int) minimum) + " to " + display((int) maximum) + " inclusive." + (sentinel == null ? "" : " Or " + sentinel + " to disable the configured ceiling.") + unitInputHelp() + " " + help;
+                    return setting + "Enter a whole number from " + display((int) numeric.minimum) + " to " + display((int) numeric.maximum) + " inclusive." + (numeric.sentinel == null ? "" : " Or " + numeric.sentinel + " to disable the configured ceiling.") + unitInputHelp() + " "
+                            + help;
                 case DECIMAL:
-                    return setting + "Enter a number from " + minimum + " to " + maximum + " inclusive. " + help;
+                    return setting + "Enter a number from " + numeric.minimum + " to " + numeric.maximum + " inclusive. " + help;
                 case MATERIAL:
                     return setting + "Enter a Minecraft 1.12.2 item name, for example DIAMOND_SWORD. Blank is not allowed.";
                 case SOUND:
@@ -100,17 +95,17 @@ final class ConfigFields {
         }
 
         String display(Object value) {
-            return String.valueOf(value) + unit;
+            return String.valueOf(value) + numeric.unit;
         }
 
         private String unitInputHelp() {
-            return unit.isEmpty() ? "" : " Enter digits only; the " + unit + " unit is shown automatically.";
+            return numeric.unit.isEmpty() ? "" : " Enter digits only; the " + numeric.unit + " unit is shown automatically.";
         }
 
         private int integerInput(String input) {
             try {
                 int number = Integer.parseInt(input);
-                if ((number >= minimum && number <= maximum) || (sentinel != null && number == sentinel)) {
+                if ((number >= numeric.minimum && number <= numeric.maximum) || (numeric.sentinel != null && number == numeric.sentinel)) {
                     return number;
                 }
             } catch (NumberFormatException ignored) {
@@ -122,7 +117,7 @@ final class ConfigFields {
         private double decimalInput(String input) {
             try {
                 double number = Double.parseDouble(input);
-                if (Double.isFinite(number) && number >= minimum && number <= maximum) {
+                if (Double.isFinite(number) && number >= numeric.minimum && number <= numeric.maximum) {
                     return number;
                 }
             } catch (NumberFormatException ignored) {
@@ -141,6 +136,21 @@ final class ConfigFields {
                 }
             }
             return sound;
+        }
+    }
+
+    private static final class NumericInput {
+
+        private final double minimum;
+        private final double maximum;
+        private final Integer sentinel;
+        private final String unit;
+
+        private NumericInput(double minimum, double maximum, Integer sentinel, String unit) {
+            this.minimum = minimum;
+            this.maximum = maximum;
+            this.sentinel = sentinel;
+            this.unit = unit;
         }
     }
 
@@ -256,7 +266,7 @@ final class ConfigFields {
     }
 
     private static Field percent(String path, String name, String help) {
-        return new Field(path, name, help, Kind.INTEGER, 0, 1000000, null, "%");
+        return new Field(path, name, help, Kind.INTEGER, new NumericInput(0, 1000000, null, "%"));
     }
 
     static Field bool(String path, String name, String help) {
@@ -301,9 +311,8 @@ final class ConfigFields {
 
     private static String help(String path) {
         if (path.startsWith(LoreStyle.PATH + ".")) {
-            return path.endsWith("action-prefix")
-                    ? "Shared by operator instructions and table lore marked {action}. Maximum " + LoreStyle.MAX_PREFIX_LENGTH + " visible characters; & color codes do not count. Use <blank> for no prefix. No placeholders."
-                    : "Shared lore role. Enter only & color or formatting codes, for example &b. Blank resets to white; formatting-only codes start from white.";
+            return path.endsWith("action-prefix") ? "Shared by operator instructions and table lore marked {action}. Maximum " + LoreStyle.MAX_PREFIX_LENGTH + " visible characters; & color codes do not count. Use <blank> for no prefix. No placeholders."
+                                                  : "Shared lore role. Enter only & color or formatting codes, for example &b. Blank resets to white; formatting-only codes start from white.";
         }
         if (path.startsWith(MESSAGES)) {
             return messageCopy(path.substring(MESSAGES.length()))[1];

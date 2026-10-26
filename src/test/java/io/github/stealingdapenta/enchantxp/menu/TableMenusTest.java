@@ -960,7 +960,7 @@ class TableMenusTest {
             if (rejection == 3) {
                 event.setCancelled(true);
             }
-            fixture.menus.interact(event);
+            fixture.dispatchInteraction(event);
             assertTrue(fixture.tasks.isEmpty());
         }
     }
@@ -1089,7 +1089,7 @@ class TableMenusTest {
         fixture.openTable();
         ItemMeta instructions = fixture.view.getTopInventory().getItem(23).getItemMeta();
         assertEquals("Choose your item", ChatColor.stripColor(instructions.getDisplayName()));
-        assertEquals(Collections.singletonList("\u00bb Left click one compatible item below."),
+        assertEquals(Collections.singletonList("\u00bb Left-click one compatible item below."),
                 stripped(instructions.getLore()));
         ItemMeta info = fixture.view.getTopInventory().getItem(TableMenus.INFO_SLOT).getItemMeta();
         assertEquals("Balance: 1000 XP", ChatColor.stripColor(info.getDisplayName()));

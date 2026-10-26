@@ -10,11 +10,15 @@ import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
+/**
+ * Bukkit lifecycle wiring; controller state is created only after configuration validation.
+ */
 public final class EnchantXpPlugin extends JavaPlugin {
 
     private TableMenus menus;
     private ReloadCommand reload;
 
+    /** Loads defaults only for a missing file, validates settings and registers controllers; invalid input disables the plugin. */
     @Override
     public void onEnable() {
         try {
@@ -54,6 +58,7 @@ public final class EnchantXpPlugin extends JavaPlugin {
         command.setTabCompleter(reload);
     }
 
+    /** Fences configuration workers before closing menus and releasing owned permissions on the server thread. */
     @Override
     public void onDisable() {
         stopConfiguration();

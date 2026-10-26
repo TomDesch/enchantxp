@@ -174,7 +174,7 @@ ui:
   option-name: '&d{enchantment} &f{level}'
   type-name: '&d{enchantment}'
   type-lore:
-    - '{action}Left click to choose enchantment'
+    - '{action}Left-click to choose enchantment'
   review-name: '&d{enchantment} &f{level}'
   review-lore:
     - '{label}Price: {number}{cost} raw XP'
@@ -187,7 +187,7 @@ ui:
     - '{label}Price: {number}{cost} raw XP'
     - '{label}Level: {number}{current}/{max}'
     - ''
-    - '{action}Left click to choose'
+    - '{action}Left-click to choose'
   selection-name: '&dSelected &8| &f{item}'
   selection-lore:
     - ''
@@ -217,17 +217,17 @@ ui:
       material: ARROW
       data: 0
       name: '&dPrevious page'
-      lore: ['{label}Page: {number}{page} of {pages}', '{action}Left click for the previous page.']
+      lore: ['{label}Page: {number}{page} of {pages}', '{action}Left-click for the previous page.']
     next:
       material: ARROW
       data: 0
       name: '&dNext page'
-      lore: ['{label}Page: {number}{page} of {pages}', '{action}Left click for the next page.']
+      lore: ['{label}Page: {number}{page} of {pages}', '{action}Left-click for the next page.']
     sort:
       material: HOPPER
       data: 0
       name: '&dCycle sort: &f{sort}'
-      lore: ['{text}Default, ascending, descending.', '{action}Left click to cycle sort.']
+      lore: ['{text}Default, ascending, descending.', '{action}Left-click to cycle sort.']
     cancel:
       material: BARRIER
       data: 0
@@ -241,7 +241,7 @@ ui:
         - '{label}Enchantment: {text}{enchantment} {level}'
         - '{label}Price: {number}{cost} raw XP'
         - ''
-        - '{action}Left click to pay and enchant'
+        - '{action}Left-click to pay and enchant'
     insufficient:
       material: BARRIER
       data: 0
@@ -255,7 +255,7 @@ ui:
       data: 0
       name: '&dChoose your item'
       lore:
-        - '{action}Left click one compatible item below.'
+        - '{action}Left-click one compatible item below.'
     info:
       material: EXP_BOTTLE
       data: 0

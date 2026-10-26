@@ -26,6 +26,11 @@ public final class BookshelfPricing {
         this.maximum = maximum;
     }
 
+    /**
+     * Reads bounded percentages and a shelf maximum in `1..15`, using shipped optional defaults.
+     *
+     * @throws IllegalArgumentException with a path for malformed or out-of-range settings
+     */
     public static BookshelfPricing read(ConfigurationSection config) {
         ConfigurationSection defaults = ConfigValues.defaults();
         ConfigurationSection section = ConfigValues.section(config, "bookshelf-pricing");
@@ -34,14 +39,17 @@ public final class BookshelfPricing {
                                     integer(config, defaults, "max-bookshelves", 1, 15));
     }
 
+    /** Returns identity pricing with scans disabled and the vanilla shelf maximum of 15. */
     public static BookshelfPricing disabled() {
         return new BookshelfPricing(false, 0, 0, 15);
     }
 
+    /** Reports whether quotes use shelf surcharges and scans inspect the world. */
     public boolean enabled() {
         return enabled;
     }
 
+    /** Returns the configured shelf-count cap, no greater than vanilla's 15. */
     public int maximum() {
         return maximum;
     }
@@ -51,6 +59,11 @@ public final class BookshelfPricing {
         return ConfigValues.integer(ConfigValues.value(config, defaults, path), path, min, max);
     }
 
+    /**
+     * Applies the remaining percentage surcharge to positive raw XP, rounding upward to a whole point.
+     * Shelf counts clamp to `0..maximum`; invalid or out-of-domain base differences return `-1`.
+     * This does not enforce the configured purchase ceiling.
+     */
     public long modify(long baseDifference, int shelves) {
         // Maximum base valuation is 1000000 * 255^2; the bounded percentage product fits long.
         if (baseDifference <= 0 || baseDifference > (long) Prices.HARD_MAX_COST * EnchantPolicy.MAX_LEVEL * EnchantPolicy.MAX_LEVEL) {
@@ -60,10 +73,17 @@ public final class BookshelfPricing {
         return (baseDifference * (100L + extra) + 99L) / 100L;
     }
 
+    /** Returns the shelf-adjusted cumulative upgrade difference in raw XP, or `-1` for an invalid upgrade. */
     public long quote(Prices prices, Enchantment enchantment, int current, int target, int count) {
         return modify(prices.upgradeQuote(enchantment, current, target), count);
     }
 
+    /**
+     * Counts reachable 1.12.2 shelves through two-block-high air gaps without loading chunks.
+     * Returns zero without inspecting the world when disabled.
+     *
+     * @throws IllegalStateException if an enabled scan runs off the server thread
+     */
     public int count(Location table) {
         if (!enabled) {
             return 0;

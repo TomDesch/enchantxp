@@ -30,10 +30,16 @@ public final class EnchantPolicy {
         this.items = Collections.unmodifiableMap(itemCopy);
     }
 
+    /** Returns vanilla caps with all catalogue enchantments enabled and no item-specific overrides. */
     public static EnchantPolicy vanilla() {
         return new EnchantPolicy(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
     }
 
+    /**
+     * Reads optional enchantment and item caps in `0..255`; zero disables the corresponding purchase.
+     *
+     * @throws IllegalArgumentException with a configuration path for unknown names, keys or invalid caps
+     */
     public static EnchantPolicy read(ConfigurationSection config) {
         Map<String, Integer> limits = new HashMap<>();
         Map<String, Boolean> enabled = new HashMap<>();
@@ -85,6 +91,12 @@ public final class EnchantPolicy {
         return items;
     }
 
+    /**
+     * Resolves the effective purchase cap: disabled, exact item, BOOK fallback, enchantment override, then vanilla.
+     * Both book types use ENCHANTED_BOOK caps first because plain-book purchases publish an enchanted book.
+     *
+     * @return a cap in `0..255`; zero disallows purchasing, not possession
+     */
     public int maximum(Material material, Enchantment enchantment) {
         if (Boolean.FALSE.equals(enabled.get(enchantment.getName()))) {
             return 0;

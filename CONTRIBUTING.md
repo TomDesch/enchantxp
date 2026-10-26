@@ -27,6 +27,8 @@ Under `io.github.stealingdapenta.enchantxp`, only `EnchantXpPlugin` lives in the
 
 Dependencies flow from administration to menu/configuration, from menu to configuration/presentation/enchanting, and from configuration to presentation/enchanting. Presentation uses enchanting names; both depend on shared YAML readers below them. Rules and presentation never depend on controllers. Tests mirror these boundaries; reusable YAML and metadata fixtures live in `testsupport`.
 
+Write useful Javadoc contracts in Markdown-readable paragraphs, lists and backticks inside `/** ... */`, retaining `@param`, `@return` and `@throws` when useful. Native Markdown Javadoc (`///`) requires JDK 23 and is not used with this JDK 21 / Java 8 toolchain.
+
 Prepare cloned item results before mutation, then repeat identity/context, output-space, permission and quote checks. Claim the session before charging. Compensation must prove the result is gone before returning source items or XP; keep those phases and reentrant lifecycle fences ordered.
 
 Exclusive file creation must succeed before entering owned-file cleanup. Publish only complete backup generations and retain the newest recoverable bytes. A disk save and Bukkit publication are not one durable transaction.

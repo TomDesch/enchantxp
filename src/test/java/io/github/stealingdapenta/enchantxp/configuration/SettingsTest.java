@@ -65,7 +65,7 @@ class SettingsTest {
         document.set("lore-style.action-prefix", "&a12345678&l12345678");
         assertNotNull(LoreStyle.read(document));
         assertEquals(2, LoreStyle.read(document).editorLines(Collections.singletonList(
-                LoreStyle.action("Left click to choose an enchantment from this list."))).size());
+                LoreStyle.action("Left-click to choose an enchantment from this list."))).size());
         document.set("lore-style.action-prefix", "12345678901234567");
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> LoreStyle.read(document));
         assertTrue(failure.getMessage().contains("lore-style.action-prefix"));
@@ -84,9 +84,9 @@ class SettingsTest {
             document.set("lore-style.action-color", "&d");
             String before = document.saveToString();
             MenuText text = Settings.read(document).text();
-            assertEquals(Collections.singletonList(ChatColor.LIGHT_PURPLE + prefix + "Left click one compatible item below."),
+            assertEquals(Collections.singletonList(ChatColor.LIGHT_PURPLE + prefix + "Left-click one compatible item below."),
                     text.icon("instructions", Collections.emptyMap()).getItemMeta().getLore());
-            assertEquals(Collections.singletonList(ChatColor.LIGHT_PURPLE + prefix + "Left click to choose enchantment"),
+            assertEquals(Collections.singletonList(ChatColor.LIGHT_PURPLE + prefix + "Left-click to choose enchantment"),
                     text.lore("ui.type-lore", Collections.emptyMap()));
             for (String stage : Arrays.asList("option", "review", "selection")) {
                 assertFalse(text.lore("ui." + stage + "-lore", Collections.emptyMap()).isEmpty());
@@ -99,12 +99,12 @@ class SettingsTest {
     @Test
     void explicitLoreRolesDoNotClassifyCustomProseOrRescanInsertedValues() throws Exception {
         Settings settings = settings("lore-style:\n  action-prefix: 'Do: '\n  label-color: '&3'\n  number-color: '&6'\n" +
-                "ui:\n  option-lore: ['{label}Price: {number}{cost}', '{action}Choose {item}', '&7Left click custom prose']\n");
+                "ui:\n  option-lore: ['{label}Price: {number}{cost}', '{action}Choose {item}', '&7Left-click custom prose']\n");
         Map<String, String> values = new HashMap<>();
         values.put("cost", "10");
         values.put("item", "{action}&a{cost}");
         assertEquals(Arrays.asList(ChatColor.DARK_AQUA + "Price: " + ChatColor.GOLD + "10",
-                ChatColor.GREEN + "Do: Choose {action}&a{cost}", ChatColor.GRAY + "Left click custom prose"),
+                ChatColor.GREEN + "Do: Choose {action}&a{cost}", ChatColor.GRAY + "Left-click custom prose"),
                 settings.text().lore("ui.option-lore", values));
         for (String invalid : Arrays.asList("messages:\n  success: '{action}'", "ui:\n  option-name: '{label}'",
                 "lore-style:\n  action-prefix: '{cost}'", "lore-style:\n  action-color: 'green'",

@@ -8,6 +8,9 @@ import java.util.Map;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.enchantments.Enchantment;
 
+/**
+ * Immutable cumulative raw-XP valuations and purchase-charge limits; neither item legality nor access is decided here.
+ */
 public final class Prices {
 
     public static final int HARD_MAX_COST = 1000000;
@@ -26,6 +29,11 @@ public final class Prices {
         this.levels = Collections.unmodifiableMap(new HashMap<>(levels));
     }
 
+    /**
+     * Reads required prices and optional overrides; `max-cost: -1` disables only the configured charge ceiling.
+     *
+     * @throws IllegalArgumentException for malformed prices or cumulative totals that fail to increase through level 255
+     */
     public static Prices read(ConfigurationSection config) {
         int base = boundedInteger(config.get(BASE_XP_KEY), BASE_XP_KEY);
         int maximum = ConfigValues.integer(config.get("max-cost"), "max-cost", -1, HARD_MAX_COST);
@@ -86,6 +94,9 @@ public final class Prices {
         return level;
     }
 
+    /**
+     * Checks calculated neighbors too: an explicit total can invalidate the following fallback level.
+     */
     private void validateIncreasingValues(String name) {
         long previous = 0;
         for (int level = 1; level <= EnchantPolicy.MAX_LEVEL; level++) {
@@ -103,14 +114,29 @@ public final class Prices {
         return ConfigValues.integer(value, key, 1, HARD_MAX_COST);
     }
 
+    /**
+     * Returns the global cumulative raw-XP cost for level `1..255`, subject to purchase-charge limits.
+     *
+     * @throws IllegalArgumentException if the level or charge is invalid
+     */
     public int cost(int level) {
         return checked(quote(null, level));
     }
 
+    /**
+     * Returns the overridden cumulative raw-XP cost for level `1..255`; a null enchantment uses global prices.
+     *
+     * @throws IllegalArgumentException if the level or charge is invalid
+     */
     public int cost(Enchantment enchantment, int level) {
         return checked(quote(enchantment, level));
     }
 
+    /**
+     * Converts a positive raw-XP quote to an integer only after checking both configured and representable limits.
+     *
+     * @throws IllegalArgumentException if the charge is not accepted
+     */
     public int checked(long cost) {
         if (!accepts(cost)) {
             throw new IllegalArgumentException("This choice exceeds max-cost or the representable raw-XP charge");
@@ -118,30 +144,42 @@ public final class Prices {
         return (int) cost;
     }
 
+    /** Tests a positive raw-XP charge against the integer bound and optional configured ceiling. */
     public boolean accepts(long cost) {
         return cost >= 1 && cost <= Integer.MAX_VALUE && (maximum == -1 || cost <= maximum);
     }
 
+    /** Tests whether the global cumulative price for level `1..255` is an accepted charge. */
     public boolean offers(int level) {
         return offers(null, level);
     }
 
+    /** Tests an overridden cumulative price; null uses global prices and invalid levels return false. */
     public boolean offers(Enchantment enchantment, int level) {
         long quote = quote(enchantment, level);
         return accepts(quote);
     }
 
+    /**
+     * Returns the raw-XP cumulative difference from a nonnegative current level to a strictly higher target at most 255, before bookshelf adjustment.
+     *
+     * @throws IllegalArgumentException if the levels or resulting charge are invalid
+     */
     public int upgradeCost(Enchantment enchantment, int current, int target) {
         return checked(upgradeQuote(enchantment, current, target));
     }
 
+    /** Tests the upgrade difference, not the target's full total; current zero means no existing enchantment. */
     public boolean offersUpgrade(Enchantment enchantment, int current, int target) {
         long quote = upgradeQuote(enchantment, current, target);
         return accepts(quote);
     }
 
+    /**
+     * Returns the cumulative difference, or `-1` unless current is nonnegative and target is strictly higher and at most 255.
+     */
     long upgradeQuote(Enchantment enchantment, int current, int target) {
-        if (current < 0 || current > EnchantPolicy.MAX_LEVEL || target < 1 || target > EnchantPolicy.MAX_LEVEL || target <= current) {
+        if (current < 0 || target < 1 || target > EnchantPolicy.MAX_LEVEL || target <= current) {
             return -1;
         }
         return quote(enchantment, target) - (current == 0 ? 0 : quote(enchantment, current));

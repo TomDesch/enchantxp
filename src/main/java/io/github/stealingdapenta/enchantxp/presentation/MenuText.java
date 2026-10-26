@@ -2,7 +2,6 @@ package io.github.stealingdapenta.enchantxp.presentation;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,8 +34,9 @@ public final class MenuText {
     private static final String ENCHANTMENT_PATH = "enchantments.";
     private static final String TITLE_PATH = "ui.titles.";
     private static final String PREFIX_PATH = "messages.prefix";
+    private static final String NAME_SUFFIX = ".name";
     private static final int MAX_TITLE_LENGTH = 32;
-    private static final Pattern TOKEN = Pattern.compile("\\{([^{}]+)\\}");
+    private static final Pattern TOKEN = Pattern.compile("\\{([^{}]+)}");
     private static final Set<String> UI_TOKENS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList("player", "item", "enchantment", "level", "current", "max", "cost", "balance", "page", "pages", "missing")));
     private final Map<String, String> strings;
     private final Map<String, List<String>> lists;
@@ -52,6 +52,12 @@ public final class MenuText {
         this.loreStyle = loreStyle;
     }
 
+    /**
+     * Validates optional UI/message trees and copies templates with packaged fallbacks.
+     * Omitted lore under an explicit UI section stays empty; inserted values are never parsed as templates.
+     *
+     * @throws IllegalArgumentException with the path for invalid types, materials or placeholders
+     */
     public static MenuText read(ConfigurationSection config) {
         YamlConfiguration defaults = ConfigValues.defaults();
         validateTree(config, defaults, "ui");
@@ -104,17 +110,16 @@ public final class MenuText {
         if (!(value instanceof List)) {
             throw new IllegalArgumentException(path + " must be a list of strings");
         }
-        List<String> copy = new ArrayList<>();
-        for (Object line : (List<?>) value) {
-            copy.add(template(line, path));
-        }
+        List<String> copy = ((List<?>) value).stream()
+                                            .map(line -> template(line, path))
+                                            .collect(Collectors.toList());
         return Collections.unmodifiableList(copy);
     }
 
     private static void readNames(ConfigurationSection config, ConfigurationSection defaults, Map<String, String> strings) {
         ConfigurationSection enchants = ConfigValues.section(config, "enchantments");
         for (String name : Enchantments.names()) {
-            String path = ENCHANTMENT_PATH + name + ".name";
+            String path = ENCHANTMENT_PATH + name + NAME_SUFFIX;
             Object value = enchants != null && config.contains(path, true) ? config.get(path) : defaults.get(path);
             strings.put(path, template(value, path));
         }
@@ -137,6 +142,7 @@ public final class MenuText {
         }
     }
 
+    /** Returns a fresh mutable set of tokens accepted at a configuration path, or an empty set for literal text. */
     public static Set<String> placeholders(String path) {
         Set<String> allowed = new HashSet<>();
         if (path.startsWith(UI_PATH)) {
@@ -164,7 +170,11 @@ public final class MenuText {
     }
 
     private static void titlePlaceholders(String path, Set<String> allowed) {
-        allowed.removeAll(Arrays.asList("enchantment", "level", "current", "max", "cost"));
+        allowed.remove("enchantment");
+        allowed.remove("level");
+        allowed.remove("current");
+        allowed.remove("max");
+        allowed.remove("cost");
         if (path.equals("ui.titles.item")) {
             allowed.remove("item");
         }
@@ -218,13 +228,15 @@ public final class MenuText {
         return ChatColor.translateAlternateColorCodes('&', text);
     }
 
+    /** Renders a known scalar template once; missing context values become empty and inserted braces stay literal. */
     public String text(String path, Map<String, String> values) {
         return render(strings.get(path), values);
     }
 
+    /** Renders a stage title within the legacy 32-character limit, never leaving a dangling color introducer. */
     public String title(MenuStage page, Map<String, String> values) {
         String title = text(TITLE_PATH + page.name()
-                                            .toLowerCase(Locale.ROOT), values);
+                                             .toLowerCase(Locale.ROOT), values);
         if (title.length() > MAX_TITLE_LENGTH) {
             title = title.substring(0, MAX_TITLE_LENGTH);
         }
@@ -234,10 +246,12 @@ public final class MenuText {
         return title;
     }
 
+    /** Returns the configured display name for a supported catalogue enchantment, with no player context. */
     public String name(Enchantment enchantment) {
-        return text(ENCHANTMENT_PATH + enchantment.getName() + ".name", Collections.emptyMap());
+        return text(ENCHANTMENT_PATH + enchantment.getName() + NAME_SUFFIX, Collections.emptyMap());
     }
 
+    /** Returns fresh ordered lore with explicit shared roles applied before single-pass context substitution. */
     public List<String> lore(String path, Map<String, String> values) {
         return lists.get(path)
                     .stream()
@@ -245,6 +259,10 @@ public final class MenuText {
                     .collect(Collectors.toList());
     }
 
+    /**
+     * Sends a known message key as separate nonblank lines, each prefixed once with inherited line colors.
+     * Player and prefix context are owned here; the caller's map is not changed. Use on the server thread.
+     */
     public void send(CommandSender sender, String message, Map<String, String> values) {
         Map<String, String> context = new HashMap<>(values);
         context.put("player", sender.getName() == null ? "" : sender.getName());
@@ -254,20 +272,33 @@ public final class MenuText {
         String continuation = "";
         for (String line : body.split("\\r?\\n", -1)) {
             String colored = continuation + line;
-            if (!ChatColor.stripColor(colored).trim().isEmpty()) {
+            if (!ChatColor.stripColor(colored)
+                          .trim()
+                          .isEmpty()) {
                 sender.sendMessage(prefix + colored);
             }
             continuation = ChatColor.getLastColors(colored);
         }
     }
 
+    /**
+     * Builds a fresh legacy decoration from a known icon key on the server thread.
+     *
+     * @throws IllegalStateException if Bukkit cannot supply or apply item metadata
+     */
     public ItemStack icon(String key, Map<String, String> values) {
         String path = "ui.icons." + key;
         ItemStack item = new ItemStack(materials.get(path + ".material"), 1, data.get(path + ".data"));
-        decorate(item, text(path + ".name", values), lore(path + ".lore", values));
+        decorate(item, text(path + NAME_SUFFIX, values), lore(path + ".lore", values));
         return item;
     }
 
+    /**
+     * Builds a fresh display book for a known template stage; positive levels add a stored preview enchantment.
+     * This is presentation only, not purchase validation. Use on the server thread.
+     *
+     * @throws IllegalStateException if Bukkit rejects the stored enchantment or metadata
+     */
     public ItemStack book(Enchantment enchantment, int level, Map<String, String> values, String stage) {
         ItemStack item = new ItemStack(Material.ENCHANTED_BOOK);
         ItemMeta raw = item.getItemMeta();
@@ -285,6 +316,11 @@ public final class MenuText {
         return item;
     }
 
+    /**
+     * Updates only name, lore and hidden-attribute flags on a caller-owned display item, on the server thread.
+     *
+     * @throws IllegalStateException if Bukkit cannot supply or apply metadata
+     */
     public static void decorate(ItemStack item, String name, List<String> lore) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {

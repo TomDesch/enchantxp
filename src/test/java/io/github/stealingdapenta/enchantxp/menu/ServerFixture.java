@@ -29,6 +29,8 @@ import org.bukkit.enchantments.EnchantmentTarget;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.EventException;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -43,6 +45,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.RegisteredListener;
 import org.bukkit.plugin.SimplePluginManager;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
@@ -193,8 +196,21 @@ public final class ServerFixture {
     }
 
     public void openTable() {
-        menus.interact(new PlayerInteractEvent(player, Action.RIGHT_CLICK_BLOCK, items.get(0), block, BlockFace.UP));
+        dispatchInteraction(new PlayerInteractEvent(player, Action.RIGHT_CLICK_BLOCK, items.get(0), block, BlockFace.UP));
         tick();
+    }
+
+    public void dispatchInteraction(PlayerInteractEvent event) {
+        try {
+            EventHandler handler = TableMenus.class.getMethod("interact", PlayerInteractEvent.class)
+                    .getAnnotation(EventHandler.class);
+            RegisteredListener registration = new RegisteredListener(menus,
+                    (listener, dispatched) -> ((TableMenus) listener).interact((PlayerInteractEvent) dispatched),
+                    handler.priority(), plugin, handler.ignoreCancelled());
+            registration.callEvent(event);
+        } catch (ReflectiveOperationException | EventException failure) {
+            throw new AssertionError("Cannot dispatch table interaction", failure);
+        }
     }
 
     public InventoryClickEvent select(int slot, ClickType click) {

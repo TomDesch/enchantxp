@@ -1,8 +1,7 @@
 package io.github.stealingdapenta.enchantxp.administration;
 
-import io.github.stealingdapenta.enchantxp.presentation.MenuText;
 import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
-
+import io.github.stealingdapenta.enchantxp.presentation.MenuText;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -14,14 +13,14 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -35,15 +34,18 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.InventoryView;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
 
-/** Player-owned drafts, with next-tick inventory navigation and private, bounded chat input. */
+/**
+ * Player-owned drafts, with next-tick inventory navigation and private, bounded chat input.
+ */
 final class ConfigEditor implements Listener {
+
     static final String PERMISSION = "enchantxp.config";
     static final int BACK = 45;
     static final int PREVIOUS = 47;
@@ -56,8 +58,8 @@ final class ConfigEditor implements Listener {
     private static final int MAX_TITLE_LENGTH = 32;
     private static final int MAX_SESSIONS = 64;
     private static final int MAX_INPUT = 256;
-    private static final long LIFETIME_TICKS = 20L * 60 * 15;
-    private static final long LIFETIME_NANOS = 15L * 60 * 1000000000;
+    private static final long LIFETIME_TICKS = 20L * 60 * 15; // 15 minutes
+    private static final long LIFETIME_NANOS = 15L * 60 * 1000000000; // 15 minutes
     private final Plugin plugin;
     private final ReloadCommand coordinator;
     private final BukkitScheduler scheduler;
@@ -70,7 +72,8 @@ final class ConfigEditor implements Listener {
     ConfigEditor(Plugin plugin, ReloadCommand coordinator) {
         this.plugin = plugin;
         this.coordinator = coordinator;
-        this.scheduler = plugin.getServer().getScheduler();
+        this.scheduler = plugin.getServer()
+                               .getScheduler();
         this.logger = plugin.getLogger();
     }
 
@@ -120,10 +123,11 @@ final class ConfigEditor implements Listener {
     }
 
     private boolean permitted(Draft draft) {
-        return current(draft) && draft.player.isOnline() &&
-                plugin.getServer().getPlayer(draft.owner) == draft.player && draft.player.hasPermission(PERMISSION);
+        return current(draft) && draft.player.isOnline() && plugin.getServer()
+                                                                  .getPlayer(draft.owner) == draft.player && draft.player.hasPermission(PERMISSION);
     }
 
+    /** Cancels movement in owned views and queues only fresh, permitted left/right actions for the next tick. */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void click(InventoryClickEvent event) {
         requireMainThread();
@@ -160,9 +164,7 @@ final class ConfigEditor implements Listener {
     }
 
     private boolean ownsClick(InventoryClickEvent event, EditorHolder holder, boolean cancelled) {
-        return !cancelled && event.getWhoClicked() == holder.draft.player &&
-                event.getView() == holder.draft.player.getOpenInventory() && holder.draft.view == holder &&
-                permitted(holder.draft);
+        return !cancelled && event.getWhoClicked() == holder.draft.player && event.getView() == holder.draft.player.getOpenInventory() && holder.draft.view == holder && permitted(holder.draft);
     }
 
     private void discardClicked(Draft draft) {
@@ -186,8 +188,9 @@ final class ConfigEditor implements Listener {
 
     private void runAction(Draft draft, EditorHolder holder, Runnable action) {
         draft.pending = false;
-        if (!permitted(draft) || draft.view != holder ||
-                draft.player.getOpenInventory().getTopInventory().getHolder() != holder) {
+        if (!permitted(draft) || draft.view != holder || draft.player.getOpenInventory()
+                                                                     .getTopInventory()
+                                                                     .getHolder() != holder) {
             return;
         }
         try {
@@ -197,6 +200,7 @@ final class ConfigEditor implements Listener {
         }
     }
 
+    /** Cancels drags for this editor's holders on the server thread, including stale owned views. */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void drag(InventoryDragEvent event) {
         requireMainThread();
@@ -205,6 +209,7 @@ final class ConfigEditor implements Listener {
         }
     }
 
+    /** Discards only the current draft's unprompted, non-navigation close on the server thread. */
     @EventHandler
     public void close(InventoryCloseEvent event) {
         requireMainThread();
@@ -219,6 +224,10 @@ final class ConfigEditor implements Listener {
         }
     }
 
+    /**
+     * Captures a bounded private prompt reply from asynchronous chat without touching YAML or inventory state.
+     * Queued server-thread handling rechecks prompt, draft, connection and view identity before applying input.
+     */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void chat(AsyncPlayerChatEvent event) {
         Prompt prompt = prompts.get(event.getPlayer());
@@ -278,12 +287,14 @@ final class ConfigEditor implements Listener {
         return input.startsWith("\\") ? input.substring(1) : input;
     }
 
+    /** Drops the leaving player's draft and permanently aborts its save ticket on the server thread. */
     @EventHandler(priority = EventPriority.MONITOR)
     public void quit(PlayerQuitEvent event) {
         requireMainThread();
         discard(event.getPlayer());
     }
 
+    /** Drops a kicked player's draft after a noncancelled kick; an owned in-progress worker still finishes cleanup. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void kick(PlayerKickEvent event) {
         requireMainThread();
@@ -372,36 +383,37 @@ final class ConfigEditor implements Listener {
 
     private void footer(EditorHolder holder, List<Entry> entries, int pageCount) {
         Draft draft = holder.draft;
-        if (!draft.route.equals("home")) {
-            put(holder, BACK, new Entry(Material.ARROW, "Back", Collections.singletonList(LoreStyle.action("Return to the previous category.")),
-                    () -> navigate(draft, parent(draft.route)), null));
+        if (!draft.route.equals(EditorRoutes.HOME)) {
+            put(holder, BACK, new Entry(Material.ARROW, "Back", Collections.singletonList(LoreStyle.action("Return to the previous category.")), () -> navigate(draft, parent(draft.route)), null));
         }
         if (draft.page > 0) {
-            put(holder, PREVIOUS, new Entry(Material.ARROW, "Previous page", Collections.singletonList(LoreStyle.action("Left click for the previous page.")),
-                    () -> { draft.page--; show(draft); }, null));
+            put(holder, PREVIOUS, new Entry(Material.ARROW, "Previous page", Collections.singletonList(LoreStyle.action("Left-click for the previous page.")), () -> {
+                draft.page--;
+                show(draft);
+            }, null));
         }
         if (draft.page + 1 < pageCount) {
-            put(holder, NEXT, new Entry(Material.ARROW, "Next page", Collections.singletonList(LoreStyle.action("Left click for the next page.")),
-                    () -> { draft.page++; show(draft); }, null));
+            put(holder, NEXT, new Entry(Material.ARROW, "Next page", Collections.singletonList(LoreStyle.action("Left-click for the next page.")), () -> {
+                draft.page++;
+                show(draft);
+            }, null));
         }
         if (pages.sortable(draft, entries)) {
-            put(holder, SORT, new Entry(Material.HOPPER, draft.alphabetical.contains(draft.route) ? "Sort: alphabetical" : "Sort: default order",
-                    Collections.singletonList(LoreStyle.action("Toggle alphabetical names across all pages.")), () -> {
-                        if (!draft.alphabetical.remove(draft.route)) {
-                            draft.alphabetical.add(draft.route);
-                        }
-                        draft.page = 0;
-                        show(draft);
-                    }, null));
+            put(holder, SORT, new Entry(Material.HOPPER, draft.alphabetical.contains(draft.route) ? "Sort: alphabetical" : "Sort: default order", Collections.singletonList(LoreStyle.action("Toggle alphabetical names across all pages.")), () -> {
+                if (!draft.alphabetical.remove(draft.route)) {
+                    draft.alphabetical.add(draft.route);
+                }
+                draft.page = 0;
+                show(draft);
+            }, null));
         }
-        put(holder, DISCARD, new Entry(Material.BARRIER, "Discard", Collections.singletonList(LoreStyle.action("Close without saving your draft.")), () -> { }, null));
-        put(holder, APPLY, new Entry(Material.EMERALD, "Apply and save", Arrays.asList(
-                LoreStyle.action("Validate the whole draft, then save it."), "An exact backup is kept beside config.yml.",
-                "Saving may reformat YAML and remove comments.", "Nothing is written until you choose this."),
-                () -> coordinator.save(draft), null));
-        holder.inventory.setItem(4, icon(holder.style, Material.BOOK_AND_QUILL, 0, "Your settings draft", Arrays.asList(
-                LoreStyle.number("Page", (draft.page + 1) + " of " + pageCount), "Changes stay private until Apply.",
-                LoreStyle.action("Escape to discard this draft."), "Chat prompts keep your draft.", "Drafts expire after 15 minutes.")));
+        put(holder, DISCARD, new Entry(Material.BARRIER, "Discard", Collections.singletonList(LoreStyle.action("Close without saving your draft.")), () -> {
+        }, null));
+        put(holder, APPLY, new Entry(Material.EMERALD, "Apply and save", Arrays.asList(LoreStyle.action("Validate the whole draft, then save it."), "An exact backup is kept beside config.yml.", "Saving may reformat YAML and remove comments.",
+                                                                                       "Nothing is written until you choose this."), () -> coordinator.save(draft), null));
+        holder.inventory.setItem(4, icon(holder.style, Material.BOOK_AND_QUILL, 0, "Your settings draft",
+                                         Arrays.asList(LoreStyle.number("Page", (draft.page + 1) + " of " + pageCount), "Changes stay private until Apply.", LoreStyle.action("Escape to discard this draft."), "Chat prompts keep your draft.",
+                                                       "Drafts expire after 15 minutes.")));
     }
 
     private void publish(Draft draft, EditorHolder holder) {
@@ -417,7 +429,9 @@ final class ConfigEditor implements Listener {
                 if (drafts.get(draft.owner) == draft && draft.view == holder) {
                     discard(draft.player);
                 }
-                if (draft.player.getOpenInventory().getTopInventory().getHolder() == holder) {
+                if (draft.player.getOpenInventory()
+                                .getTopInventory()
+                                .getHolder() == holder) {
                     draft.player.closeInventory();
                 }
             }
@@ -425,9 +439,10 @@ final class ConfigEditor implements Listener {
     }
 
     private boolean published(Draft draft, EditorHolder holder, InventoryView opened) {
-        return permitted(draft) && draft.view == holder && opened != null &&
-                opened.getTopInventory().getHolder() == holder &&
-                draft.player.getOpenInventory().getTopInventory().getHolder() == holder;
+        return permitted(draft) && draft.view == holder && opened != null && opened.getTopInventory()
+                                                                                   .getHolder() == holder && draft.player.getOpenInventory()
+                                                                                                                         .getTopInventory()
+                                                                                                                         .getHolder() == holder;
     }
 
     private void put(EditorHolder holder, int slot, Entry entry) {
@@ -450,20 +465,21 @@ final class ConfigEditor implements Listener {
     }
 
     private EditorHolder holder(InventoryView view) {
-        InventoryHolder holder = view.getTopInventory().getHolder();
+        InventoryHolder holder = view.getTopInventory()
+                                     .getHolder();
         return holder instanceof EditorHolder && ((EditorHolder) holder).editor == this ? (EditorHolder) holder : null;
     }
 
     private static String title(String route) {
-        if (route.equals("home")) {
+        if (route.equals(EditorRoutes.HOME)) {
             return "EnchantXP";
         }
-        if (route.equals("items")) {
+        if (route.equals(EditorRoutes.ITEMS)) {
             return "Item level caps";
         }
-        if (route.startsWith("item:") || route.startsWith("pick:")) {
+        if (route.startsWith(EditorRoutes.ITEM) || route.startsWith(EditorRoutes.PICK)) {
             String item = ConfigFields.label(route.substring(route.indexOf(':') + 1));
-            return route.startsWith("pick:") ? "Pick: " + item : "Caps: " + item;
+            return route.startsWith(EditorRoutes.PICK) ? "Pick: " + item : "Caps: " + item;
         }
         if (route.contains(":")) {
             return ConfigFields.label(route.substring(0, route.indexOf(':')));
@@ -483,17 +499,37 @@ final class ConfigEditor implements Listener {
     }
 
     private static String parent(String route) {
-        if (route.startsWith("enchant:")) { return "enchants"; }
-        if (route.startsWith("levels:")) { return "enchant:" + route.substring(7); }
-        if (route.startsWith("level:")) { return "levels:" + route.split(":")[1]; }
-        if (route.startsWith("item:")) { return "items"; }
-        if (route.startsWith("pick:")) { return "item:" + route.substring(5); }
-        if (route.startsWith("icon:")) { return "icons"; }
-        if (route.startsWith("sound:")) { return "sounds"; }
-        if (route.equals("titles") || route.equals("icons") || route.equals("lore-style")) { return "ui"; }
-        if (route.startsWith("lines:ui.icons.")) { return "icon:" + route.split("\\.")[2]; }
-        if (route.startsWith("lines:")) { return "ui"; }
-        return "home";
+        if (route.startsWith(EditorRoutes.ENCHANT)) {
+            return EditorRoutes.ENCHANTS;
+        }
+        if (route.startsWith(EditorRoutes.LEVELS)) {
+            return EditorRoutes.ENCHANT + route.substring(EditorRoutes.LEVELS.length());
+        }
+        if (route.startsWith(EditorRoutes.LEVEL)) {
+            return EditorRoutes.LEVELS + route.split(":")[1];
+        }
+        if (route.startsWith(EditorRoutes.ITEM)) {
+            return EditorRoutes.ITEMS;
+        }
+        if (route.startsWith(EditorRoutes.PICK)) {
+            return EditorRoutes.ITEM + route.substring(EditorRoutes.PICK.length());
+        }
+        if (route.startsWith(EditorRoutes.ICON)) {
+            return EditorRoutes.ICONS;
+        }
+        if (route.startsWith(EditorRoutes.SOUND)) {
+            return EditorRoutes.SOUNDS;
+        }
+        if (route.equals(EditorRoutes.TITLES) || route.equals(EditorRoutes.ICONS) || route.equals(EditorRoutes.LORE_STYLE)) {
+            return EditorRoutes.UI;
+        }
+        if (route.startsWith("lines:ui.icons.")) {
+            return EditorRoutes.ICON + route.split("\\.")[2];
+        }
+        if (route.startsWith(EditorRoutes.LINES)) {
+            return EditorRoutes.UI;
+        }
+        return EditorRoutes.HOME;
     }
 
     private static String color(String text) {
@@ -511,13 +547,14 @@ final class ConfigEditor implements Listener {
     }
 
     static final class Draft {
+
         final UUID owner;
         final Player player;
         final YamlConfiguration document;
         final byte[] hash;
         final long generation;
         final long created = System.nanoTime();
-        String route = "home";
+        String route = EditorRoutes.HOME;
         final Set<String> alphabetical = new HashSet<>();
         int page;
         boolean pending;
@@ -536,6 +573,7 @@ final class ConfigEditor implements Listener {
     }
 
     static final class EditorHolder implements InventoryHolder {
+
         final ConfigEditor editor;
         final Draft draft;
         final Map<Integer, Entry> entries = new HashMap<>();
@@ -548,6 +586,7 @@ final class ConfigEditor implements Listener {
             this.style = LoreStyle.read(draft.document);
         }
 
+        /** Returns this holder's inventory; null only before its unpublished view has been built. */
         @Override
         public Inventory getInventory() {
             return inventory;
@@ -555,6 +594,7 @@ final class ConfigEditor implements Listener {
     }
 
     static final class Entry {
+
         final Material material;
         final String name;
         final List<String> lore;
@@ -577,6 +617,7 @@ final class ConfigEditor implements Listener {
     }
 
     private static final class Prompt {
+
         final Draft draft;
         final Consumer<String> accept;
         final InventoryView expectedView;

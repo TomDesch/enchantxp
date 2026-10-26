@@ -15,7 +15,7 @@ An XP-only enchanting menu for exactly Spigot and Paper 1.12.2. No lapis, econom
 
 Stop the server, put the EnchantXP JAR in `plugins`, then start normally. Use a server-compatible Java runtime; this plugin targets Java 8. Do not use server `/reload`.
 
-Right click an enchanting table, then select a compatible item from your inventory. Choose an enchantment and level, and left click Confirm. Back, Cancel and Escape never purchase. Keep your cursor empty and stay near the table.
+Right-click an enchanting table, then select a compatible item from your inventory. Choose an enchantment and level, and left-click Confirm. Back, Cancel and Escape never purchase. Keep your cursor empty and stay near the table.
 
 A plain book stack converts one book per purchase and needs a separate empty storage slot. Equipped armor, offhand items, written books and stacked enchanted books are not supported.
 
@@ -30,7 +30,7 @@ Optional level permissions check the exact target, for example `enchantxp.enchan
 
 ## Settings
 
-Use `/enchantxp config` or edit `plugins\EnchantXP\config.yml` and run `/enchantxp reload`. The editor explains each setting. Left click edits or toggles; right click resets an override. Only Apply and save writes the draft.
+Use `/enchantxp config` or edit `plugins\EnchantXP\config.yml` and run `/enchantxp reload`. The editor explains each setting. Left-click edits or toggles; right-click resets an override. Only Apply and save writes the draft.
 
 - Prices use `base-xp * level * level`, with optional per-enchantment bases and cumulative level overrides. Upgrades charge the difference between current and target totals, then apply bookshelf pricing.
 - `max-cost` hides options whose purchase charge exceeds the limit. Set it to `-1` to disable that configured ceiling; safe raw-XP integer bounds still apply. Level 70 is valid, and 255 is the hard level bound.
@@ -42,7 +42,7 @@ Use `/enchantxp config` or edit `plugins\EnchantXP\config.yml` and run `/enchant
 
 Menu appearance -> Lore formatting controls `lore-style.action-prefix` (default `\u00bb `, displayed as a right-pointing double angle) and the action, label, number and text colors. The prefix allows at most 16 visible characters; valid legacy color codes do not count. An empty prefix hides just the symbol. Empty role colors reset to white; formatting-only roles start from white. Table lore uses explicit `{action}`, `{label}`, `{number}` and `{text}` roles; unmarked custom prose is left alone. Formatting-only edits do not create `ui` overrides or clear inherited lore.
 
-Right clicking an individual UI lore field restores an explicit copy of its shipped lines; Clear all lines intentionally keeps it empty. Use default appearance resets both menu overrides and shared lore formatting. Use default icon resets only that icon.
+Right-clicking an individual UI lore field restores an explicit copy of its shipped lines; Clear all lines intentionally keeps it empty. Use default appearance resets both menu overrides and shared lore formatting. Use default icon resets only that icon.
 
 Existing explicit table lore stays unchanged when upgrading. To adopt the new presentation, compare your intended defaults with packaged `config.yml` and replace only matching old shipped lines with their role-marked equivalents, including `ui.icons.instructions.lore`. Keep customized wording. Command help now sends its heading and each permitted command separately; `{commands}` remains permission-filtered.
 

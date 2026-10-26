@@ -12,11 +12,19 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 
+/**
+ * Strict path-aware readers; optional sections may be absent but malformed values never silently coerce.
+ */
 public final class ConfigValues {
 
     private ConfigValues() {
     }
 
+    /**
+     * Loads a fresh mutable copy of packaged defaults; callers never share YAML state.
+     *
+     * @throws IllegalStateException if the packaged resource is missing or unreadable
+     */
     public static YamlConfiguration defaults() {
         return readDefaults(ConfigValues.class.getResourceAsStream("/config.yml"));
     }
@@ -34,10 +42,16 @@ public final class ConfigValues {
         return defaults;
     }
 
+    /** Returns an explicit value or its packaged fallback; may return null when neither document contains the path. */
     public static Object value(ConfigurationSection config, ConfigurationSection defaults, String path) {
         return config.contains(path, true) ? config.get(path) : defaults.get(path);
     }
 
+    /**
+     * Accepts only YAML integer/long values inside inclusive bounds, with no string or decimal coercion.
+     *
+     * @throws IllegalArgumentException with the supplied path for the wrong type or range
+     */
     public static int integer(Object value, String path, int minimum, int maximum) {
         if (!(value instanceof Integer) && !(value instanceof Long)) {
             throw new IllegalArgumentException(path + " must be a whole integer");
@@ -50,6 +64,11 @@ public final class ConfigValues {
         return (int) number;
     }
 
+    /**
+     * Reads an explicit boolean or its fallback without coercing strings.
+     *
+     * @throws IllegalArgumentException with the path if the resolved value is not boolean
+     */
     public static boolean bool(ConfigurationSection config, ConfigurationSection defaults, String path) {
         Object value = value(config, defaults, path);
         if (!(value instanceof Boolean)) {
@@ -58,7 +77,9 @@ public final class ConfigValues {
         return (Boolean) value;
     }
 
-    /** Returns null for an absent optional section; rejects a present value of the wrong type. */
+    /**
+     * Returns null for an absent optional section; rejects a present value of the wrong type.
+     */
     public static ConfigurationSection section(ConfigurationSection config, String path) {
         if (!config.contains(path, true)) {
             return null;
@@ -70,6 +91,11 @@ public final class ConfigValues {
         return section;
     }
 
+    /**
+     * Rejects unknown immediate children; a null optional section has no keys to validate.
+     *
+     * @throws IllegalArgumentException naming the unknown child path
+     */
     public static void keys(ConfigurationSection section, String... allowed) {
         if (section == null) {
             return;
@@ -82,7 +108,9 @@ public final class ConfigValues {
         }
     }
 
-    /** Requires a section and reports its configuration path when absent or malformed. */
+    /**
+     * Requires a section and reports its configuration path when absent or malformed.
+     */
     public static ConfigurationSection requiredSection(ConfigurationSection config, String path) {
         ConfigurationSection section = section(config, path);
         if (section == null) {
@@ -91,6 +119,11 @@ public final class ConfigValues {
         return section;
     }
 
+    /**
+     * Requires an exact legacy item-material name; AIR and block-only materials are not accepted.
+     *
+     * @throws IllegalArgumentException with the path for an unknown or unusable material
+     */
     public static Material material(Object value, String path) {
         if (value instanceof String) {
             try {

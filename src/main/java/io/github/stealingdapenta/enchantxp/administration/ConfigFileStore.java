@@ -110,8 +110,11 @@ class ConfigFileStore {
         }
     }
 
+    /**
+     * Acquires exclusive file ownership before entering cleanup scope; write and close failures remove only the acquired file.
+     * Failed exclusive creation conveys no ownership, so a pre-existing collision must survive.
+     */
     private void writeNew(Path candidate, byte[] bytes) throws IOException {
-        // A failed exclusive creation conveys no ownership and must never enter cleanup.
         OutputStream acquired = Files.newOutputStream(candidate, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         try (OutputStream output = acquired) {
             output.write(bytes);

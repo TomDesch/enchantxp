@@ -77,6 +77,11 @@ public final class TableMenus implements Listener {
     private boolean running = true;
     private boolean replacing;
 
+    /**
+     * Creates server-thread menu controllers and prepares owned permissions from validated settings.
+     *
+     * @throws IllegalArgumentException if enabled permission nodes conflict with foreign registrations
+     */
     public TableMenus(Plugin plugin, Settings settings) {
         this.plugin = plugin;
         this.prices = settings.prices();
@@ -93,11 +98,15 @@ public final class TableMenus implements Listener {
         this.renderer = new MenuRenderer(prices, policy, text, layout, shelves);
     }
 
+    /**
+     * Replaces an uncancelled main-hand table interaction with deferred menu admission on the server thread.
+     * Bukkit's registered `ignoreCancelled` dispatch owns the protection-event cancellation filter.
+     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void interact(PlayerInteractEvent event) {
         requireMainThread();
         Block block = event.getClickedBlock();
-        if (event.isCancelled() || !running || replacing || event.getAction() != Action.RIGHT_CLICK_BLOCK || block == null || block.getType() != Material.ENCHANTMENT_TABLE) {
+        if (!running || replacing || event.getAction() != Action.RIGHT_CLICK_BLOCK || block == null || block.getType() != Material.ENCHANTMENT_TABLE) {
             return;
         }
         event.setCancelled(true);
@@ -125,6 +134,7 @@ public final class TableMenus implements Listener {
         });
     }
 
+    /** Cancels movement in owned holders and routes only fresh player/view/session clicks on the server thread. */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void click(InventoryClickEvent event) {
         requireMainThread();
@@ -139,7 +149,7 @@ public final class TableMenus implements Listener {
         }
         Player player = (Player) event.getWhoClicked();
         EnchantSession session = sessions.get(player.getUniqueId());
-        if (!owns(player, session, holder) || event.getView() != player.getOpenInventory() || event.getRawSlot() < 0) {
+        if (ownershipLost(player, session, holder) || event.getView() != player.getOpenInventory() || event.getRawSlot() < 0) {
             return;
         }
         int slot = event.getRawSlot();
@@ -166,7 +176,7 @@ public final class TableMenus implements Listener {
         int slot = event.getSlot();
         int raw = event.getRawSlot();
         return holder.page == MenuStage.ITEM && event.getClickedInventory() == event.getView()
-                                                                                   .getBottomInventory() && slot >= 0 && slot < EnchantSession.STORAGE_SIZE && raw >= holder.layout.size && raw < holder.layout.size + EnchantSession.STORAGE_SIZE;
+                                                                                    .getBottomInventory() && slot >= 0 && slot < EnchantSession.STORAGE_SIZE && raw >= holder.layout.size && raw < holder.layout.size + EnchantSession.STORAGE_SIZE;
     }
 
     private void queueSelection(InventoryClickEvent event, Player player, EnchantSession session, MenuHolder holder) {
@@ -178,7 +188,7 @@ public final class TableMenus implements Listener {
                                .getItem(sourceSlot);
         ItemStack snapshot = item == null ? null : item.clone();
         // Acknowledge the selection attempt, not availability; shelf and choice validation stays deferred.
-        if (!empty(snapshot)) {
+        if (hasContents(snapshot)) {
             clickSound(player);
         }
         queue(player, session, () -> select(player, session, holder, sourceSlot, snapshot));
@@ -270,7 +280,7 @@ public final class TableMenus implements Listener {
     }
 
     private void select(Player player, EnchantSession session, MenuHolder holder, int slot, ItemStack snapshot) {
-        if (!owns(player, session, holder)) {
+        if (ownershipLost(player, session, holder)) {
             return;
         }
         ItemStack item = player.getInventory()
@@ -312,7 +322,7 @@ public final class TableMenus implements Listener {
     }
 
     private void act(Player player, EnchantSession session, MenuHolder holder, int slot) {
-        if (!owns(player, session, holder)) {
+        if (ownershipLost(player, session, holder)) {
             return;
         }
         if (!context(player, session)) {
@@ -400,7 +410,7 @@ public final class TableMenus implements Listener {
     }
 
     private void sort(Player player, EnchantSession session, MenuHolder holder) {
-        if (!owns(player, session, holder)) {
+        if (ownershipLost(player, session, holder)) {
             return;
         }
         if (!context(player, session)) {
@@ -413,7 +423,7 @@ public final class TableMenus implements Listener {
     }
 
     private void back(Player player, EnchantSession session, MenuHolder holder) {
-        if (!owns(player, session, holder)) {
+        if (ownershipLost(player, session, holder)) {
             return;
         }
         if (!context(player, session)) {
@@ -483,7 +493,7 @@ public final class TableMenus implements Listener {
         // The old menu's close event must not invalidate its replacement.
         session.menu = next;
         player.openInventory(next.getInventory());
-        if (!owns(player, session, next)) {
+        if (ownershipLost(player, session, next)) {
             finish(player, session);
             return;
         }
@@ -492,7 +502,7 @@ public final class TableMenus implements Listener {
     }
 
     private boolean context(Player player, EnchantSession session) {
-        if (!active(player, session) || !eligible(player) || !empty(player.getItemOnCursor()) || player.getInventory()
+        if (!active(player, session) || !eligible(player) || hasContents(player.getItemOnCursor()) || player.getInventory()
                                                                                                        .getHeldItemSlot() != session.heldSlot || (session.hasSelection() && !session.matches(player.getInventory()
                                                                                                                                                                                                    .getItem(session.slot)))) {
             return false;
@@ -510,16 +520,16 @@ public final class TableMenus implements Listener {
         return running && !replacing && session != null && session.owner.equals(player.getUniqueId()) && sessions.get(player.getUniqueId()) == session;
     }
 
-    private boolean owns(Player player, EnchantSession session, MenuHolder holder) {
+    private boolean ownershipLost(Player player, EnchantSession session, MenuHolder holder) {
         // 1.12.2 wraps the inventory again for its open view, but retains the original holder.
-        return active(player, session) && session.menu == holder && holder.owner.equals(player.getUniqueId()) && holder.sessionId.equals(session.id) && holder(player.getOpenInventory()) == holder && player.getOpenInventory()
+        return !active(player, session) || session.menu != holder || !holder.owner.equals(player.getUniqueId()) || !holder.sessionId.equals(session.id) || holder(player.getOpenInventory()) != holder || !player.getOpenInventory()
                                                                                                                                                                                                              .getPlayer()
                                                                                                                                                                                                              .getUniqueId()
                                                                                                                                                                                                              .equals(session.owner);
     }
 
-    private static boolean empty(ItemStack item) {
-        return item == null || item.getType() == Material.AIR || item.getAmount() == 0;
+    private static boolean hasContents(ItemStack item) {
+        return item != null && item.getType() != Material.AIR && item.getAmount() != 0;
     }
 
     private MenuHolder holder(InventoryView view) {
@@ -558,6 +568,7 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /** Cancels drags in this controller's holders on the server thread without moving items. */
     @EventHandler(priority = EventPriority.HIGHEST)
     public void drag(InventoryDragEvent event) {
         requireMainThread();
@@ -566,6 +577,7 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /** Invalidates only the session whose current holder closed, not a replacement menu's stale close event. */
     @EventHandler(priority = EventPriority.MONITOR)
     public void close(InventoryCloseEvent event) {
         requireMainThread();
@@ -577,6 +589,7 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /** Invalidates the leaving player's session and queued actions on the server thread. */
     @EventHandler(priority = EventPriority.MONITOR)
     public void quit(PlayerQuitEvent event) {
         requireMainThread();
@@ -584,6 +597,7 @@ public final class TableMenus implements Listener {
                     .getUniqueId());
     }
 
+    /** Invalidates a player's session after a noncancelled kick on the server thread. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void kick(PlayerKickEvent event) {
         requireMainThread();
@@ -591,6 +605,7 @@ public final class TableMenus implements Listener {
                     .getUniqueId());
     }
 
+    /** Invalidates a dead player's session before stale actions can charge or return items. */
     @EventHandler(priority = EventPriority.MONITOR)
     public void death(PlayerDeathEvent event) {
         requireMainThread();
@@ -598,6 +613,7 @@ public final class TableMenus implements Listener {
                     .getUniqueId());
     }
 
+    /** Prevents item drops while a session owns the player's inventory context, on the server thread. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void drop(PlayerDropItemEvent event) {
         requireMainThread();
@@ -607,6 +623,7 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /** Prevents hand swaps while a session owns the player's inventory context, on the server thread. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void swap(PlayerSwapHandItemsEvent event) {
         requireMainThread();
@@ -616,6 +633,7 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /** Prevents hotbar selection changes while a session is active, on the server thread. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void held(PlayerItemHeldEvent event) {
         requireMainThread();
@@ -625,6 +643,7 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /** Permanently stops menus, cancels plugin tasks and releases only owned views and permissions on the server thread. */
     public void shutdown() {
         requireMainThread();
         running = false;
@@ -635,10 +654,23 @@ public final class TableMenus implements Listener {
         registry.shutdown();
     }
 
+    /**
+     * Replaces validated settings on the server thread, closing old owned menus.
+     *
+     * @throws IllegalStateException if the controller stops during replacement
+     * @throws IllegalArgumentException if permission publication conflicts
+     */
     public void replace(Settings settings) {
         replace(settings, () -> true);
     }
 
+    /**
+     * Replaces validated settings only while the caller's lifecycle fence remains active after reentrant inventory closes.
+     * Permission preparation precedes invalidation; no closed session or queued quote is reused.
+     *
+     * @throws IllegalStateException if off-thread, stopped or invalidated by the lifecycle fence
+     * @throws IllegalArgumentException if permission publication conflicts
+     */
     public void replace(Settings settings, BooleanSupplier lifecycleActive) {
         requireMainThread();
         if (!running) {
@@ -666,6 +698,12 @@ public final class TableMenus implements Listener {
         }
     }
 
+    /**
+     * Checks lifecycle and permission namespace ownership on the server thread without closing menus or publishing settings.
+     *
+     * @throws IllegalStateException if off-thread or stopped
+     * @throws IllegalArgumentException if enabled permission nodes conflict
+     */
     public void validateReplacement(Settings settings) {
         requireMainThread();
         if (!running) {
@@ -680,7 +718,7 @@ public final class TableMenus implements Listener {
         }
         sessions.clear();
         for (Player player : new ArrayList<>(plugin.getServer()
-                                                  .getOnlinePlayers())) {
+                                                   .getOnlinePlayers())) {
             closeOrphanMenu(player);
         }
     }
