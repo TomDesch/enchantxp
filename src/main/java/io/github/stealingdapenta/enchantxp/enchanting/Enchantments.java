@@ -1,10 +1,9 @@
 package io.github.stealingdapenta.enchantxp.enchanting;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,20 +13,66 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 
+/**
+ * Vanilla 1.12.2 catalogue and non-mutating item legality checks; custom enchantment effects are outside this contract.
+ */
 public final class Enchantments {
 
-    private static final Set<String> VANILLA = Collections.unmodifiableSet(new HashSet<>(
-            Arrays.asList("PROTECTION_ENVIRONMENTAL", "PROTECTION_FIRE", "PROTECTION_FALL", "PROTECTION_EXPLOSIONS", "PROTECTION_PROJECTILE", "OXYGEN", "WATER_WORKER", "THORNS", "DEPTH_STRIDER", "FROST_WALKER", "BINDING_CURSE", "DAMAGE_ALL",
-                          "DAMAGE_UNDEAD", "DAMAGE_ARTHROPODS", "KNOCKBACK", "FIRE_ASPECT", "LOOT_BONUS_MOBS", "SWEEPING_EDGE", "DIG_SPEED", "SILK_TOUCH", "DURABILITY", "LOOT_BONUS_BLOCKS", "ARROW_DAMAGE", "ARROW_KNOCKBACK", "ARROW_FIRE",
-                          "ARROW_INFINITE", "LUCK", "LURE", "MENDING", "VANISHING_CURSE")));
+    private static final Map<String, String> CATALOGUE;
+    private static final Set<String> VANILLA;
+
+    static {
+        Map<String, String> catalogue = new LinkedHashMap<>();
+        catalogue.put("PROTECTION_ENVIRONMENTAL", "protection");
+        catalogue.put("PROTECTION_FIRE", "fire_protection");
+        catalogue.put("PROTECTION_FALL", "feather_falling");
+        catalogue.put("PROTECTION_EXPLOSIONS", "blast_protection");
+        catalogue.put("PROTECTION_PROJECTILE", "projectile_protection");
+        catalogue.put("OXYGEN", "respiration");
+        catalogue.put("WATER_WORKER", "aqua_affinity");
+        catalogue.put("THORNS", "thorns");
+        catalogue.put("DEPTH_STRIDER", "depth_strider");
+        catalogue.put("FROST_WALKER", "frost_walker");
+        catalogue.put("BINDING_CURSE", "binding_curse");
+        catalogue.put("DAMAGE_ALL", "sharpness");
+        catalogue.put("DAMAGE_UNDEAD", "smite");
+        catalogue.put("DAMAGE_ARTHROPODS", "bane_of_arthropods");
+        catalogue.put("KNOCKBACK", "knockback");
+        catalogue.put("FIRE_ASPECT", "fire_aspect");
+        catalogue.put("LOOT_BONUS_MOBS", "looting");
+        catalogue.put("SWEEPING_EDGE", "sweeping_edge");
+        catalogue.put("DIG_SPEED", "efficiency");
+        catalogue.put("SILK_TOUCH", "silk_touch");
+        catalogue.put("DURABILITY", "unbreaking");
+        catalogue.put("LOOT_BONUS_BLOCKS", "fortune");
+        catalogue.put("ARROW_DAMAGE", "power");
+        catalogue.put("ARROW_KNOCKBACK", "punch");
+        catalogue.put("ARROW_FIRE", "flame");
+        catalogue.put("ARROW_INFINITE", "infinity");
+        catalogue.put("LUCK", "luck_of_the_sea");
+        catalogue.put("LURE", "lure");
+        catalogue.put("MENDING", "mending");
+        catalogue.put("VANISHING_CURSE", "vanishing_curse");
+        CATALOGUE = Collections.unmodifiableMap(catalogue);
+        VANILLA = CATALOGUE.keySet();
+    }
+
+    static Map<String, String> permissionSlugs() {
+        return CATALOGUE;
+    }
 
     private Enchantments() {
     }
 
+    /** Tests a nullable input stack against vanilla caps, book metadata and pairwise enchantment consistency. */
     public static boolean supported(ItemStack item) {
         return supported(item, EnchantPolicy.vanilla());
     }
 
+    /**
+     * Tests stack shape, applicability and existing metadata against vanilla or configured effective caps.
+     * Null, AIR, nonpositive stacks, stacked equipment and unsupported book forms return false.
+     */
     public static boolean supported(ItemStack item, EnchantPolicy policy) {
         return supportedStack(item) && applicable(item) && consistentEnchantments(item, policy);
     }
@@ -74,10 +119,15 @@ public final class Enchantments {
         return vanilla(existing) && (book(item) || existing.canEnchantItem(item)) && level >= existing.getStartLevel() && level <= EnchantPolicy.MAX_LEVEL && level <= Math.max(existing.getMaxLevel(), policy.maximum(item.getType(), existing));
     }
 
+    /** Returns immutable name-sorted enchantments with affordable legal upgrades under vanilla caps. */
     public static List<Enchantment> choices(ItemStack item, Prices prices) {
         return choices(item, prices, EnchantPolicy.vanilla());
     }
 
+    /**
+     * Returns immutable name-sorted choices passing item, policy and base-price checks, but not permissions or shelves.
+     * Unsupported inputs return an empty list.
+     */
     public static List<Enchantment> choices(ItemStack item, Prices prices, EnchantPolicy policy) {
         if (!supported(item, policy)) {
             return Collections.emptyList();
@@ -96,10 +146,15 @@ public final class Enchantments {
         return Collections.unmodifiableList(result);
     }
 
+    /** Tests a strictly higher target under vanilla caps without changing the item or checking its price. */
     public static boolean legal(ItemStack item, Enchantment enchantment, int level) {
         return legal(item, enchantment, level, EnchantPolicy.vanilla());
     }
 
+    /**
+     * Tests a canonical catalogue enchantment, strict upgrade, effective cap, applicability and symmetric conflicts.
+     * Price, permissions and player context are deliberately separate checks.
+     */
     public static boolean legal(ItemStack item, Enchantment enchantment, int level, EnchantPolicy policy) {
         if (!supported(item, policy) || !vanilla(enchantment) || level < enchantment.getStartLevel() || level > policy.maximum(item.getType(), enchantment) || level > EnchantPolicy.MAX_LEVEL || level <= level(item, enchantment) || (!book(item)
                 && !enchantment.canEnchantItem(item))) {
@@ -113,6 +168,7 @@ public final class Enchantments {
         return true;
     }
 
+    /** Returns immutable ascending legal target levels with accepted base-price differences, bounded by 255. */
     public static List<Integer> levels(ItemStack item, Enchantment enchantment, Prices prices, EnchantPolicy policy) {
         if (!supported(item, policy) || !vanilla(enchantment)) {
             return Collections.emptyList();
@@ -127,23 +183,31 @@ public final class Enchantments {
         return Collections.unmodifiableList(levels);
     }
 
+    /** Returns the immutable supported vanilla name set shared with the stable permission-slug catalogue. */
     public static Set<String> names() {
         return VANILLA;
     }
 
+    /** Tests whether a nonnull item is a plain or enchanted book, independent of stack legality. */
     public static boolean book(ItemStack item) {
         return item.getType() == Material.BOOK || item.getType() == Material.ENCHANTED_BOOK;
     }
 
+    /**
+     * Reads stored enchantments for an enchanted book, otherwise ordinary item enchantments.
+     * Callers must supply a nonnull item and must not mutate the returned Bukkit-owned snapshot.
+     */
     public static Map<Enchantment, Integer> current(ItemStack item) {
         ItemMeta meta = item.getItemMeta();
         return item.getType() == Material.ENCHANTED_BOOK && meta instanceof EnchantmentStorageMeta ? ((EnchantmentStorageMeta) meta).getStoredEnchants() : item.getEnchantments();
     }
 
+    /** Returns an item's current stored/ordinary level, or zero when that enchantment is absent. */
     public static int level(ItemStack item, Enchantment enchantment) {
         return current(item).getOrDefault(enchantment, 0);
     }
 
+    /** Tests whether any canonical enchantment can advance legally, ignoring price, shelves and player access. */
     public static boolean hasLegalUpgrade(ItemStack item, EnchantPolicy policy) {
         if (!supported(item, policy)) {
             return false;

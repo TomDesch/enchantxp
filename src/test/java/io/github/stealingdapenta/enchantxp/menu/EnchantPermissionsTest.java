@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.menu;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
+import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPermissions;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import org.bukkit.Bukkit;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.permissions.PermissibleBase;
 import org.bukkit.permissions.Permission;
@@ -28,6 +30,33 @@ import static org.mockito.Mockito.*;
 class EnchantPermissionsTest {
     private static final String ENABLED = ServerFixture.LEGACY_PRICING +
             "base-xp: 1\nmax-cost: 1000000\npermissions:\n  enabled: true\n";
+
+    @Test
+    void catalogueRegistersEveryVanillaParentOnceWithStableNontrivialSlugs() throws Exception {
+        ServerFixture fixture = new ServerFixture(ENABLED);
+        Set<String> registered = fixture.manager.getPermission("enchantxp.enchant.*").getChildren().keySet();
+        assertEquals(30, Enchantments.names().size());
+        assertEquals(Enchantments.names().size(), registered.size());
+        assertEquals(Enchantments.names(), ConfigValues.defaults().getConfigurationSection("enchantments").getKeys(false));
+        Set<String> queried = new HashSet<>();
+        when(fixture.player.hasPermission(startsWith("enchantxp.enchant."))).thenAnswer(call -> {
+            assertTrue(queried.add(call.getArgument(0)));
+            return false;
+        });
+        EnchantPermissions permissions = EnchantPermissions.read(yaml(ENABLED));
+        for (String name : Enchantments.names()) {
+            assertFalse(permissions.allows(fixture.player, Enchantment.getByName(name), 1));
+        }
+        assertEquals(30, queried.size());
+        for (String leaf : queried) {
+            assertTrue(registered.contains(leaf.substring(0, leaf.lastIndexOf('.') + 1) + "*"));
+        }
+        assertTrue(registered.contains("enchantxp.enchant.fortune.*"));
+        assertTrue(registered.contains("enchantxp.enchant.sharpness.*"));
+        assertTrue(registered.contains("enchantxp.enchant.aqua_affinity.*"));
+        assertTrue(registered.contains("enchantxp.enchant.luck_of_the_sea.*"));
+        assertTrue(registered.contains("enchantxp.enchant.vanishing_curse.*"));
+    }
 
     @Test
     void disabledFeatureRegistersNothingAndNeverQueriesLeafOrBypassesUseOrCaps() throws Exception {

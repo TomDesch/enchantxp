@@ -19,33 +19,16 @@ import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.PluginManager;
 
 /**
- * Optional target-level access, separate from the menu's enchantxp.use admission check.
- * When enabled, a purchase of Sharpness IV checks enchantxp.enchant.sharpness.4 only; levels I-III are not prerequisites.
- * Display names never change these stable nodes.
+ * Optional target-level access, separate from the menu's enchantxp.use admission check. When enabled, a purchase of Sharpness IV checks enchantxp.enchant.sharpness.4 only; levels I-III are not prerequisites. Display names never change these stable
+ * nodes.
  *
- * The registry links enchantxp.enchant.* to enchantment parents such as enchantxp.enchant.sharpness.*, then links those parents to their effective levels.
- * Exact leaves default to OP and parents default to FALSE.
- * All decisions use Player.hasPermission on the exact leaf: Bukkit or the installed permissions plugin resolves inheritance, attachments and negatives.
- * There is no manual wildcard or OP bypass.
+ * The registry links enchantxp.enchant.* to enchantment parents such as enchantxp.enchant.sharpness.*, then links those parents to their effective levels. Exact leaves default to OP and parents default to FALSE. All decisions use
+ * Player.hasPermission on the exact leaf: Bukkit or the installed permissions plugin resolves inheritance, attachments and negatives. There is no manual wildcard or OP bypass.
  */
 public final class EnchantPermissions {
 
     private static final String ROOT = "enchantxp.enchant.";
-    private static final Map<String, String> SLUGS;
-
-    static {
-        String[] names = {"PROTECTION_ENVIRONMENTAL", "PROTECTION_FIRE", "PROTECTION_FALL", "PROTECTION_EXPLOSIONS", "PROTECTION_PROJECTILE", "OXYGEN", "WATER_WORKER", "THORNS", "DEPTH_STRIDER", "FROST_WALKER", "BINDING_CURSE", "DAMAGE_ALL",
-                          "DAMAGE_UNDEAD", "DAMAGE_ARTHROPODS", "KNOCKBACK", "FIRE_ASPECT", "LOOT_BONUS_MOBS", "SWEEPING_EDGE", "DIG_SPEED", "SILK_TOUCH", "DURABILITY", "LOOT_BONUS_BLOCKS", "ARROW_DAMAGE", "ARROW_KNOCKBACK", "ARROW_FIRE",
-                          "ARROW_INFINITE", "LUCK", "LURE", "MENDING", "VANISHING_CURSE"};
-        String[] slugs = {"protection", "fire_protection", "feather_falling", "blast_protection", "projectile_protection", "respiration", "aqua_affinity", "thorns", "depth_strider", "frost_walker", "binding_curse", "sharpness", "smite",
-                          "bane_of_arthropods", "knockback", "fire_aspect", "looting", "sweeping_edge", "efficiency", "silk_touch", "unbreaking", "fortune", "power", "punch", "flame", "infinity", "luck_of_the_sea", "lure", "mending",
-                          "vanishing_curse"};
-        Map<String, String> values = new LinkedHashMap<>();
-        for (int i = 0; i < names.length; i++) {
-            values.put(names[i], slugs[i]);
-        }
-        SLUGS = Collections.unmodifiableMap(values);
-    }
+    private static final Map<String, String> SLUGS = Enchantments.permissionSlugs();
 
     private final boolean enabled;
 
@@ -53,16 +36,24 @@ public final class EnchantPermissions {
         this.enabled = enabled;
     }
 
+    /**
+     * Reads the optional enabled flag without registering nodes or querying players.
+     *
+     * @throws IllegalArgumentException for unknown permission keys or a nonboolean enabled flag
+     */
     public static EnchantPermissions read(ConfigurationSection config) {
         ConfigValues.keys(ConfigValues.section(config, "permissions"), "enabled");
         return new EnchantPermissions(ConfigValues.bool(config, ConfigValues.defaults(), "permissions.enabled"));
     }
 
+    /** Returns a policy that skips exact level checks, not table admission or item legality. */
     public static EnchantPermissions disabled() {
         return new EnchantPermissions(false);
     }
 
-    /** Disabling level permissions skips only this check, not item, price or menu access rules. */
+    /**
+     * Disabling level permissions skips only this check, not item, price or menu access rules.
+     */
     public boolean allows(Player player, Enchantment enchantment, int level) {
         return !enabled || player.hasPermission(leaf(enchantment, level));
     }
@@ -72,20 +63,25 @@ public final class EnchantPermissions {
     }
 
     /**
-     * Owns dynamically registered nodes until shutdown.
-     * Valid cap raises add children and recalculate existing subscribers; lowering caps or turning checks off retains the graph, while purchase policy still filters offers.
-     * Candidate validation rejects foreign nodes.
-     * Failed publication restores child maps and removes newly added owned instances.
+     * Owns dynamically registered nodes until shutdown. Valid cap raises add children and recalculate existing subscribers; lowering caps or turning checks off retains the graph, while purchase policy still filters offers. Candidate validation
+     * rejects foreign nodes. Failed publication restores child maps and removes newly added owned instances.
      */
     public static final class Registry {
 
         private final PluginManager manager;
         private final Map<String, Permission> owned = new LinkedHashMap<>();
 
+        /** Binds an initially empty registry to the server manager; construction registers nothing. */
         public Registry(PluginManager manager) {
             this.manager = manager;
         }
 
+        /**
+         * Publishes missing owned nodes and grows parent links through effective caps, on the server thread.
+         * Disabled settings are a no-op; failed publication rolls back only this attempt's owned changes.
+         *
+         * @throws IllegalArgumentException if a foreign permission occupies this namespace
+         */
         public void prepare(EnchantPermissions settings, EnchantPolicy policy) {
             if (!settings.enabled) {
                 return;
@@ -180,11 +176,18 @@ public final class EnchantPermissions {
             }
         }
 
-        /** Removes owned registrations and legacy defaults without deleting foreign replacements. */
+        /**
+         * Removes owned registrations and legacy defaults without deleting foreign replacements.
+         */
         public void shutdown() {
             remove(new ArrayList<>(owned.values()));
         }
 
+        /**
+         * Checks namespace ownership without mutation; disabled settings skip the check.
+         *
+         * @throws IllegalArgumentException if any registered node is foreign, replaced or removed
+         */
         public void validate(EnchantPermissions settings) {
             if (!settings.enabled) {
                 return;
