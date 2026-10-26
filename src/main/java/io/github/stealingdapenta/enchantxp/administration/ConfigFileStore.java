@@ -112,8 +112,8 @@ class ConfigFileStore {
 
     private void writeNew(Path candidate, byte[] bytes) throws IOException {
         // A failed exclusive creation conveys no ownership and must never enter cleanup.
-        OutputStream created = Files.newOutputStream(candidate, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-        try (OutputStream output = created) {
+        OutputStream acquired = Files.newOutputStream(candidate, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+        try (OutputStream output = acquired) {
             output.write(bytes);
         } catch (IOException | RuntimeException failure) {
             cleanupOwned(candidate, failure);
@@ -136,7 +136,7 @@ class ConfigFileStore {
         Files.move(candidate, backup, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    // Prune before creating, so failed/cancelled attempts cannot grow an unbounded archive.
+    // Prune before creating, so failed/canceled attempts cannot grow an unbounded archive.
     private void retainLatestBackup() throws IOException {
         List<Backup> backups = new ArrayList<>();
         Path directory = file.getParent() == null ? file.toAbsolutePath()
