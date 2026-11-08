@@ -59,6 +59,8 @@ Each run creates a fresh ignored direct child of `.playtest`, binds to localhost
 
 Live log reads share the server's open writer and permit rotation. The reader enforces a 16 MiB byte limit during reading; read failures propagate to graceful shutdown and a failed run.
 
+Bukkit enable/disable exceptions for EnchantQA or EnchantXP fail the run even after a passing summary. Expected invalid-candidate reload diagnostics remain allowed.
+
 This checks native API, metadata, permissions, reload, shelves and configuration ownership. Authenticated-player purchases, client layout and audible sound still require a separate playtest. Native QA is separate from hosted CI because the exact server binaries and local EULA authorization are caller prerequisites.
 
 Maven wrapper Apache-2.0 notices are retained; the wrapper is tooling, not bundled plugin code.

@@ -109,6 +109,9 @@ function Assert-QaResult {
     if ($Log -match '\[EnchantQA\].*(QA (FAIL|ERROR)|failed:|could not|did not stop|Interrupted|restoration refused)') {
         throw 'Native QA reported an assertion, lifecycle or restoration failure.'
     }
+    if ($Log -match '\bError occurred while (?:enabling|disabling) (?:EnchantQA|EnchantXP)(?:\s|$)') {
+        throw 'Bukkit reported a native QA or production plugin lifecycle failure.'
+    }
 }
 
 function Stop-QaOwnedProcess {

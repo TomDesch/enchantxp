@@ -115,6 +115,14 @@ try {
     Assert-Throws { Assert-QaResult $log $false $true 0 } 'Unresponsive startup fails'
     Assert-Throws { Assert-QaResult $log $true $false 0 } 'Unverified graceful stop fails'
     Assert-Throws { Assert-QaResult $log $true $true 1 } 'Nonzero exit fails'
+    foreach ($plugin in @('EnchantQA', 'EnchantXP')) {
+        foreach ($phase in @('enabling', 'disabling')) {
+            $lifecycle = "[12:00:00] [Server thread/ERROR]: Error occurred while $phase $plugin vtest (Is it up to date?)`njava.lang.IllegalStateException: test lifecycle failure"
+            Assert-Throws { Assert-QaResult ($log + "`n" + $lifecycle) $true $true 0 } "$plugin $phase exceptions fail after a successful summary"
+        }
+    }
+    Assert-QaResult ($log + "`n[12:00:00] [Server thread/ERROR]: [EnchantXP] Cannot reload config.yml: expected invalid candidate") $true $true 0
+    Assert-QaResult ($log + "`n[12:00:00] [Server thread/ERROR]: Error occurred while disabling EnchantXPExtra vtest") $true $true 0
     Write-Output 'PASS: behavioral completeness, single summary and post-shutdown diagnostics'
 } finally {
     Remove-Item -LiteralPath $root -Recurse -Force
