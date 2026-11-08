@@ -43,4 +43,20 @@ Keep Maven and plugin metadata synchronized. Increment alpha.N for complete iter
 
 Configuration schema numbers are independent build-defined integers. Increment them only for incompatible schema changes and document the required operator adaptation.
 
+## Native QA
+
+`scripts\native-qa` owns the reproducible native assertion fixture and its exact-byte configuration ownership regressions. Supply a legally obtained exact Spigot or Paper 1.12.2 server JAR yourself. There are no downloads or automatic EULA acceptance. Build the production JAR first, then compile the helper with JDK 21 against the pinned Spigot API JAR (or the supplied exact server JAR containing that API):
+
+```powershell
+.\scripts\native-qa\build.ps1 -JavaHome 'C:\path\to\jdk-21' -ApiJar 'C:\path\to\spigot-api.jar' -BuildName qa-build-new
+.\scripts\native-qa\test-controls.ps1 -JavaHome 'C:\path\to\java-8'
+.\scripts\native-qa\run.ps1 -ServerJar 'C:\path\to\server-1.12.2.jar' -JavaHome 'C:\path\to\java-8' -FixtureJar '.playtest\qa-build-new\EnchantQA.jar' -Platform Spigot -ServerName qa-spigot-new -Port 25595 -Plan
+```
+
+The build runs seven standalone ownership scenarios and prints its helper JAR path/hash. The helper metadata derives from the current POM. Use a Java 8 runtime containing `bin\java.exe` and `release` for the Windows PowerShell runner. Review the no-write plan; replace `-Plan` with `-AcceptEula` only when explicitly authorizing acceptance of the Minecraft EULA for this local run. Repeat with `-Platform Paper`, its exact server JAR and a fresh server name/free port.
+
+Each run creates a fresh ignored direct child of `.playtest`, binds to localhost with online authentication and RCON/query disabled, and waits for 133 behavioral assertions. It sends and flushes stdin `stop`, waits at most 90 seconds, then checks the final log and exit code. Startup and assertion timeouts fail; a shutdown timeout reports the owned PID for inspection. The runner retains its own logs and world for diagnosis and never reuses, seeds or deletes existing server directories. Configuration restoration relinquishes ownership before the summary so later edits survive teardown.
+
+This checks native API, metadata, permissions, reload, shelves and configuration ownership. Authenticated-player purchases, client layout and audible sound still require a separate playtest. Native QA is separate from hosted CI because the exact server binaries and local EULA authorization are caller prerequisites.
+
 Maven wrapper Apache-2.0 notices are retained; the wrapper is tooling, not bundled plugin code.

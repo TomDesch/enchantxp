@@ -1,0 +1,7 @@
+name: EnchantQA
+
+version: @version@
+
+main: local.enchantqa.EnchantQA
+
+softdepend: [EnchantXP]
