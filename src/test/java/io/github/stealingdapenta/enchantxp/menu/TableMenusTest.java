@@ -1288,6 +1288,48 @@ class TableMenusTest {
     }
 
     @Test
+    void backClearsChoiceContextButRetainsSelectedEnchantmentOnConfirmationReturn() throws Exception {
+        fixture = new ServerFixture(ServerFixture.LEGACY_PRICING +
+                "base-xp: 1\nmax-cost: 1000000\nui:\n" +
+                "  type-lore: ['{enchantment}: {current}/{max}']\n" +
+                "  option-lore: ['{enchantment}: {current}/{max} -> {level}']\n");
+        ItemStack source = fixture.items.get(0);
+        source.addUnsafeEnchantment(ServerFixture.SHARPNESS, 2);
+        source.addUnsafeEnchantment(ServerFixture.UNBREAKING, 1);
+        ItemStack original = source.clone();
+        fixture.open();
+        MenuHolder initial = fixture.menu();
+        Map<Enchantment, List<String>> initialLore = new HashMap<>();
+        initial.choices.forEach((slot, enchantment) ->
+                initialLore.put(enchantment, initial.getInventory().getItem(slot).getItemMeta().getLore()));
+        assertEquals(Collections.singletonList("Unbreaking: /"), initialLore.get(ServerFixture.UNBREAKING));
+        fixture.click(sharpnessSlot(), ClickType.LEFT);
+        fixture.tick();
+        int levelSlot = fixture.menu().levels.entrySet().stream()
+                .filter(entry -> entry.getValue() == 3).findFirst().get().getKey();
+        List<String> levelLore = fixture.menu().getInventory().getItem(levelSlot).getItemMeta().getLore();
+        assertEquals(Collections.singletonList("Sharpness: 2/5 -> 3"), levelLore);
+        fixture.click(levelSlot, ClickType.LEFT);
+        fixture.tick();
+        assertEquals(MenuStage.CONFIRM, fixture.menu().page);
+        fixture.click(TableMenus.BACK_SLOT, ClickType.LEFT);
+        fixture.tick();
+        assertEquals(MenuStage.LEVEL, fixture.menu().page);
+        assertSame(ServerFixture.SHARPNESS, fixture.menu().enchantment);
+        assertEquals(levelLore, fixture.menu().getInventory().getItem(levelSlot).getItemMeta().getLore());
+        fixture.click(TableMenus.BACK_SLOT, ClickType.LEFT);
+        fixture.tick();
+        assertEquals(MenuStage.ENCHANTMENT, fixture.menu().page);
+        assertEquals(initial.sessionId, fixture.menu().sessionId);
+        fixture.menu().choices.forEach((slot, enchantment) ->
+                assertEquals(initialLore.get(enchantment), fixture.menu().getInventory().getItem(slot).getItemMeta().getLore()));
+        assertEquals(original, source);
+        assertSame(source, fixture.items.get(0));
+        assertEquals(0, fixture.writes);
+        assertEquals(1000, Experience.total(fixture.level, fixture.progress));
+    }
+
+    @Test
     void levelSortIsNumericResetsPaginationAndSurvivesBackAndNewItemSelection() throws Exception {
         fixture = new ServerFixture(ServerFixture.LEGACY_PRICING + "base-xp: 1\nmax-cost: 1000000\n" +
                 "enchantments:\n  DAMAGE_ALL:\n    max-level: 35\n");

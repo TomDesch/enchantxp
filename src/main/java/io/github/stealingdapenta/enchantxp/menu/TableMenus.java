@@ -450,7 +450,8 @@ public final class TableMenus implements Listener {
             }
         } else {
             MenuStage previous = holder.page == MenuStage.CONFIRM ? MenuStage.LEVEL : MenuStage.ENCHANTMENT;
-            show(player, session, build(player, session, previous, holder.enchantment, 0, 0));
+            Enchantment selection = previous == MenuStage.LEVEL ? holder.enchantment : null;
+            show(player, session, build(player, session, previous, selection, 0, 0));
         }
     }
 
