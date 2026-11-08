@@ -81,7 +81,7 @@ public final class MenuText {
     }
 
     private static void readTemplate(ConfigurationSection config, ConfigurationSection defaults, String path, Map<String, String> strings, Map<String, List<String>> lists, Map<String, Material> materials, Map<String, Short> data) {
-        Object value = legacyTemplate(path, ConfigValues.value(config, defaults, path));
+        Object value = legacyTemplate(path, ConfigValues.value(config, defaults, path), defaults);
         if (path.endsWith(".material")) {
             materials.put(path, ConfigValues.material(value, path));
         } else if (path.endsWith(".data")) {
@@ -93,12 +93,15 @@ public final class MenuText {
         }
     }
 
-    private static Object legacyTemplate(String path, Object value) {
+    private static Object legacyTemplate(String path, Object value, ConfigurationSection defaults) {
         if (path.equals("messages.success") && "&5EnchantedXP &8> &aConfirmed {enchantment} {level} for {cost} XP.".equals(value)) {
             return "&aConfirmed {enchantment} {level} for {cost} XP.";
         }
         if (path.equals("messages.eligibility") && "{prefix}&cEnchantXP requires survival mode and enchantxp.use.".equals(value)) {
             return "&cEnchantXP requires survival or creative mode and enchantxp.use.";
+        }
+        if (path.equals("messages.unavailable") && "&eThe remaining upgrades cost more than the server allows.".equals(value)) {
+            return defaults.get(path);
         }
         return value;
     }

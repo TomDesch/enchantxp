@@ -346,7 +346,7 @@ class TableMenusTest {
             fixture.select(0, ClickType.LEFT);
             fixture.tick();
             assertSame(menu, fixture.menu());
-            verify(fixture.player).sendMessage(contains(cappedPrice ? "cost more than" : "no more upgrades"));
+            verify(fixture.player).sendMessage(contains(cappedPrice ? "server price limits" : "no more upgrades"));
             assertEquals(before, sword);
             assertEquals(0, fixture.writes);
             assertEquals(1000, Experience.total(fixture.level, fixture.progress));

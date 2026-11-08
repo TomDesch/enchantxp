@@ -488,6 +488,12 @@ class FeedbackFeaturesTest {
         verify(fixture.player).sendMessage("OnlyOnce " + ChatColor.RED +
                 "EnchantXP requires survival or creative mode and enchantxp.use.");
         assertEquals(oldEligibility, config.getString("messages.eligibility"));
+        String oldUnavailable = "&eThe remaining upgrades cost more than the server allows.";
+        config.set("messages.unavailable", oldUnavailable);
+        Settings.read(config).text().send(fixture.player, "unavailable", Collections.emptyMap());
+        verify(fixture.player).sendMessage("OnlyOnce " + ChatColor.YELLOW +
+                "Your permissions or the server price limits prevent the remaining upgrades.");
+        assertEquals(oldUnavailable, config.getString("messages.unavailable"));
     }
 
     @Test

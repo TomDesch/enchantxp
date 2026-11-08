@@ -278,7 +278,7 @@ messages:
   unsupported: '&cChoose one compatible item or a stack of plain books. Written books cannot be enchanted.'
   no-space: '&cMake room for an enchanted book in your inventory, then try again. Nothing was charged.'
   no-upgrades: '&eThis item has no more upgrades available.'
-  unavailable: '&eThe remaining upgrades cost more than the server allows.'
+  unavailable: '&eYour permissions or the server price limits prevent the remaining upgrades.'
   insufficient: '&cNot enough raw XP: need {cost}, you have {balance}.'
   invalid-balance: '&cYour XP balance could not be read. Please contact a server operator.'
   stale: '&cSomething changed before the purchase. Reopen the table to try again.'

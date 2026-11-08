@@ -46,6 +46,8 @@ Right-clicking an individual UI lore field restores an explicit copy of its ship
 
 Existing explicit table lore stays unchanged when upgrading. To adopt the new presentation, compare your intended defaults with packaged `config.yml` and replace only matching old shipped lines with their role-marked equivalents, including `ui.icons.instructions.lore`. Keep customized wording. Command help now sends its heading and each permitted command separately; `{commands}` remains permission-filtered.
 
+The unavailable-upgrade message covers permission and price filtering. The exact old shipped price-only sentence is normalized in memory to the current default; customized messages and your configuration file stay unchanged.
+
 The required integer `config-version: 1` identifies the configuration schema, not the plugin release or save count. Before an incompatible upgrade, preserve your old file, compare the new defaults and follow the release instructions before setting the documented schema. There is no automatic migration or unconditional compatibility guarantee.
 
 Invalid startup configuration disables the plugin; a bad reload retains healthy live settings and leaves your file untouched. Saves reject detected external edits and retain at most two owned exact-byte `config.yml.backup-*` generations. Explicit saving can normalize YAML and remove comments. If feedback says "Saved, but not applied", check the log and reload. Keep your own backups for long-term recovery.

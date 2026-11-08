@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.permissions.PermissibleBase;
@@ -94,15 +96,48 @@ class EnchantPermissionsTest {
 
     @Test
     void allHiddenAccessLeavesItemSelectionUsableWithoutClaimingAnything() throws Exception {
-        ServerFixture fixture = new ServerFixture(ENABLED);
+        String neutral = "Your permissions or the server price limits prevent the remaining upgrades.";
+        for (String override : new String[]{"",
+                "&eThe remaining upgrades cost more than the server allows.", "&bAsk an administrator."}) {
+            String config = ENABLED + (override.isEmpty() ? "" : "messages:\n  unavailable: '" + override + "'\n");
+            ServerFixture fixture = new ServerFixture(config);
+            ItemStack source = fixture.items.get(0);
+            ItemStack original = source.clone();
+            fixture.open();
+            assertEquals(MenuStage.ITEM, fixture.menu().page);
+            String expected = override.startsWith("&b") ? "Ask an administrator." : neutral;
+            verify(fixture.player).sendMessage(argThat((String message) ->
+                    ChatColor.stripColor(message).equals("EnchantXP > " + expected)));
+            assertEquals(original, source);
+            assertEquals(0, fixture.writes);
+            assertEquals(1000, Experience.total(fixture.level, fixture.progress));
+            when(fixture.player.hasPermission("enchantxp.enchant.unbreaking.1")).thenReturn(true);
+            fixture.select(0, ClickType.LEFT);
+            fixture.tick();
+            assertEquals(MenuStage.ENCHANTMENT, fixture.menu().page);
+            assertEquals(Collections.singleton(ServerFixture.UNBREAKING), new HashSet<>(fixture.menu().choices.values()));
+            assertSame(source, fixture.items.get(0));
+            assertEquals(original, source);
+            assertEquals(0, fixture.writes);
+            assertEquals(1000, Experience.total(fixture.level, fixture.progress));
+        }
+    }
+
+    @Test
+    void mixedPermissionAndPriceFiltersKeepExpensiveGrantedLevelsHidden() throws Exception {
+        ServerFixture fixture = new ServerFixture(ENABLED.replace("max-cost: 1000000", "max-cost: 1"));
+        when(fixture.player.hasPermission("enchantxp.enchant.sharpness.2")).thenReturn(true);
         fixture.open();
         assertEquals(MenuStage.ITEM, fixture.menu().page);
+        verify(fixture.player).sendMessage(contains("Your permissions or the server price limits"));
         assertEquals(0, fixture.writes);
         when(fixture.player.hasPermission("enchantxp.enchant.unbreaking.1")).thenReturn(true);
         fixture.select(0, ClickType.LEFT);
         fixture.tick();
         assertEquals(MenuStage.ENCHANTMENT, fixture.menu().page);
-        assertEquals(1, fixture.menu().choices.size());
+        assertEquals(Collections.singleton(ServerFixture.UNBREAKING), new HashSet<>(fixture.menu().choices.values()));
+        assertEquals(0, fixture.writes);
+        assertEquals(1000, Experience.total(fixture.level, fixture.progress));
     }
 
     @Test
