@@ -326,7 +326,16 @@ public final class MenuText {
      * @throws IllegalStateException if Bukkit cannot supply or apply metadata
      */
     public static void decorate(ItemStack item, String name, List<String> lore) {
-        ItemMeta meta = item.getItemMeta();
+        decorate(item, item.getItemMeta(), name, lore);
+    }
+
+    /**
+     * Decorates and applies the caller's already retrieved display metadata in one checked update.
+     * Other metadata mutations must be complete before this call. Use on the server thread.
+     *
+     * @throws IllegalStateException if metadata is null or Bukkit rejects its application
+     */
+    public static void decorate(ItemStack item, ItemMeta meta, String name, List<String> lore) {
         if (meta == null) {
             throw new IllegalStateException("Server did not provide item metadata");
         }

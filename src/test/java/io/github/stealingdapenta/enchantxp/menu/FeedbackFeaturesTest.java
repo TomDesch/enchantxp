@@ -6,16 +6,20 @@ import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.presentation.MenuStage;
+import io.github.stealingdapenta.enchantxp.testsupport.MemoryItemMeta;
 import static io.github.stealingdapenta.enchantxp.testsupport.YamlDocuments.yaml;
 
 import java.util.Collections;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.bukkit.ChatColor;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -24,6 +28,9 @@ import org.bukkit.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.event.inventory.ClickType;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -32,6 +39,97 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class FeedbackFeaturesTest {
+    @Test
+    void selectionPreviewDecoratesTheLoreReadCopyAndPreservesSourceMetadata() throws Exception {
+        ServerFixture fixture = new ServerFixture(ServerFixture.LEGACY_PRICING +
+                "base-xp: 25\nmax-cost: 1000000\nui:\n  selection-name: 'Preview {item}'\n  selection-lore: ['Menu lore']\n");
+        AtomicReference<ItemMeta> loreOwner = new AtomicReference<>();
+        ItemMeta sourceMeta = new LoreReadMeta(loreOwner);
+        sourceMeta.setDisplayName("Named sword");
+        sourceMeta.setLore(Arrays.asList("First original line", "Second original line"));
+        sourceMeta.setLocalizedName("localized");
+        sourceMeta.setUnbreakable(true);
+        sourceMeta.addEnchant(ServerFixture.SHARPNESS, 2, true);
+        sourceMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        ItemStack source = fixture.items.get(0);
+        assertTrue(source.setItemMeta(sourceMeta));
+        ItemStack original = source.clone();
+        AtomicBoolean applied = new AtomicBoolean();
+        when(Bukkit.getItemFactory().isApplicable(any(ItemMeta.class), eq(Material.DIAMOND_SWORD)))
+                .thenAnswer(call -> {
+                    ItemMeta candidate = call.getArgument(0);
+                    if ("Preview Named sword".equals(candidate.getDisplayName())) {
+                        assertSame(loreOwner.get(), candidate, "Apply the copy that supplied the original lore");
+                        applied.set(true);
+                    }
+                    return true;
+                });
+        fixture.open();
+        assertTrue(applied.get());
+        assertEquals(MenuStage.ENCHANTMENT, fixture.menu().page);
+        ItemMeta preview = fixture.menu().getInventory().getItem(TableMenus.PREVIEW_SLOT).getItemMeta();
+        assertEquals(Arrays.asList("First original line", "Second original line", "Menu lore"), preview.getLore());
+        assertEquals("localized", preview.getLocalizedName());
+        assertTrue(preview.isUnbreakable());
+        assertEquals(2, preview.getEnchantLevel(ServerFixture.SHARPNESS));
+        assertTrue(preview.hasItemFlag(ItemFlag.HIDE_ENCHANTS));
+        assertTrue(preview.hasItemFlag(ItemFlag.HIDE_ATTRIBUTES));
+        assertEquals(original, source);
+        assertSame(source, fixture.items.get(0));
+        assertEquals(0, fixture.writes);
+    }
+
+    @Test
+    void selectionPreviewPreservesStoredBookMetadataAndOrderedLoreWithoutChangingSource() throws Exception {
+        ServerFixture fixture = new ServerFixture(ServerFixture.LEGACY_PRICING +
+                "base-xp: 25\nmax-cost: 1000000\nui:\n  selection-name: 'Preview {item}'\n  selection-lore: ['Menu lore']\n");
+        ItemStack source = new ItemStack(Material.ENCHANTED_BOOK);
+        EnchantmentStorageMeta meta = (EnchantmentStorageMeta) source.getItemMeta();
+        meta.setDisplayName("Named book");
+        meta.setLore(Arrays.asList("Original first", "Original second"));
+        meta.setLocalizedName("localized book");
+        meta.setUnbreakable(true);
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        assertTrue(meta.addStoredEnchant(ServerFixture.SHARPNESS, 2, true));
+        assertTrue(source.setItemMeta(meta));
+        fixture.items.put(0, source);
+        ItemStack original = source.clone();
+        fixture.open();
+        EnchantmentStorageMeta preview = (EnchantmentStorageMeta)
+                fixture.menu().getInventory().getItem(TableMenus.PREVIEW_SLOT).getItemMeta();
+        assertEquals("Preview Named book", preview.getDisplayName());
+        assertEquals(Arrays.asList("Original first", "Original second", "Menu lore"), preview.getLore());
+        assertEquals(meta.getStoredEnchants(), preview.getStoredEnchants());
+        assertEquals("localized book", preview.getLocalizedName());
+        assertTrue(preview.isUnbreakable());
+        assertTrue(preview.hasItemFlag(ItemFlag.HIDE_ENCHANTS));
+        assertTrue(preview.hasItemFlag(ItemFlag.HIDE_ATTRIBUTES));
+        assertEquals(original, source);
+        assertSame(source, fixture.items.get(0));
+        assertEquals(0, fixture.writes);
+    }
+
+    private static final class LoreReadMeta extends MemoryItemMeta {
+        private final AtomicReference<ItemMeta> loreOwner;
+
+        private LoreReadMeta(AtomicReference<ItemMeta> loreOwner) {
+            this.loreOwner = loreOwner;
+        }
+
+        @Override
+        public List<String> getLore() {
+            loreOwner.set(this);
+            return super.getLore();
+        }
+
+        @Override
+        public LoreReadMeta clone() {
+            LoreReadMeta copy = new LoreReadMeta(loreOwner);
+            copyTo(copy);
+            return copy;
+        }
+    }
+
     @Test
     void selectionAcknowledgesBeforeShelfAndPermissionWorkWithOneImmediateDefaultSound() throws Exception {
         ServerFixture fixture = new ServerFixture("base-xp: 25\nmax-cost: 1000000\npermissions:\n  enabled: true\n");

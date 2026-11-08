@@ -35,6 +35,8 @@ Shared numeric settings use immutable `NumericRule` contracts for runtime YAML b
 
 Prepare cloned item results before mutation, then repeat identity/context, output-space, permission and quote checks. Claim the session before charging. Compensation must prove the result is gone before returning source items or XP; keep those phases and reentrant lifecycle fences ordered.
 
+Each display update reuses one metadata copy for lore, name, flags and glow, then applies it once with a checked result. Independent transaction metadata readbacks remain validation boundaries.
+
 Exclusive file creation must succeed before entering owned-file cleanup. Publish only complete backup generations and retain the newest recoverable bytes. A disk save and Bukkit publication are not one durable transaction.
 
 ## Version policy

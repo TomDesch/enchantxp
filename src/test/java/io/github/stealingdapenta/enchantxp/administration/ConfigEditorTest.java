@@ -9,6 +9,7 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import io.github.stealingdapenta.enchantxp.enchanting.Experience;
 import io.github.stealingdapenta.enchantxp.menu.ServerFixture;
+import io.github.stealingdapenta.enchantxp.testsupport.MemoryItemMeta;
 import static io.github.stealingdapenta.enchantxp.testsupport.YamlDocuments.yaml;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.scheduler.BukkitTask;
@@ -1363,6 +1365,39 @@ class ConfigEditorTest {
     }
 
     @Test
+    void rejectedGlowOrFinalMetadataLeavesThePreviousEditorViewUnchanged() throws Exception {
+        open();
+        clickNamed("Permissions");
+        ConfigEditor.Draft owner = draft();
+        ConfigEditor.EditorHolder previous = owner.view;
+        InventoryView previousView = fixture.view;
+        owner.document.set("permissions.enabled", true);
+        for (boolean rejectGlow : new boolean[]{false, true}) {
+            when(Bukkit.getItemFactory().isApplicable(any(ItemMeta.class), any(Material.class)))
+                    .thenAnswer(call -> {
+                        ItemMeta meta = call.getArgument(0);
+                        return rejectGlow || !meta.hasEnchant(Enchantment.DURABILITY);
+                    });
+            if (rejectGlow) {
+                when(Bukkit.getItemFactory().getItemMeta(any(Material.class))).thenAnswer(call -> new MemoryItemMeta() {
+                    @Override
+                    public boolean addEnchant(Enchantment enchantment, int level, boolean ignore) {
+                        return false;
+                    }
+                });
+            }
+            IllegalStateException failure = assertThrows(IllegalStateException.class, () -> editor.show(owner));
+            assertTrue(failure.getMessage().contains(rejectGlow ? "glow" : "metadata"));
+            assertSame(previousView, fixture.view);
+            assertSame(previous, owner.view);
+            assertFalse(previous.getInventory().getItem(findSlot("Check level permissions")).getItemMeta().hasEnchants());
+        }
+        assertEquals(ORIGINAL, new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
+        assertEquals(0, fixture.writes);
+        assertEquals(1000, Experience.total(fixture.level, fixture.progress));
+    }
+
+    @Test
     void booleanStatusAndGlowFollowDraftAndNumbersContrastWithoutChangingInheritance() {
         open();
         clickNamed("Permissions");
@@ -1373,6 +1408,7 @@ class ConfigEditorTest {
         ItemStack enabled = fixture.view.getTopInventory().getItem(findSlot("Check level permissions"));
         assertTrue(enabled.getItemMeta().hasEnchant(Enchantment.DURABILITY));
         assertTrue(enabled.getItemMeta().hasItemFlag(ItemFlag.HIDE_ENCHANTS));
+        assertTrue(enabled.getItemMeta().hasItemFlag(ItemFlag.HIDE_ATTRIBUTES));
         String lore = String.join("\n", enabled.getItemMeta().getLore());
         assertTrue(lore.contains(ChatColor.GREEN + "Enabled"));
         assertTrue(ChatColor.stripColor(lore).contains("Source: explicit override."));

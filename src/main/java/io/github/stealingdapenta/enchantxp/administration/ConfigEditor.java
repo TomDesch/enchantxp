@@ -447,20 +447,28 @@ final class ConfigEditor implements Listener {
 
     private void put(EditorHolder holder, int slot, Entry entry) {
         holder.entries.put(slot, entry);
-        ItemStack item = icon(holder.style, entry.material, 0, entry.name, entry.lore);
-        if (entry.glowing) {
-            ItemMeta meta = item.getItemMeta();
-            meta.addEnchant(Enchantment.DURABILITY, 1, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-            item.setItemMeta(meta);
-        }
+        ItemStack item = icon(holder.style, entry.material, 0, entry.name, entry.lore, entry.glowing);
         holder.inventory.setItem(slot, item);
     }
 
     private ItemStack icon(LoreStyle style, Material material, int data, String name, List<String> lines) {
+        return icon(style, material, data, name, lines, false);
+    }
+
+    private ItemStack icon(LoreStyle style, Material material, int data, String name, List<String> lines, boolean glowing) {
         ItemStack item = new ItemStack(material, 1, (short) data);
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            throw new IllegalStateException("Server did not provide item metadata");
+        }
+        if (glowing) {
+            if (!meta.addEnchant(Enchantment.DURABILITY, 1, true)) {
+                throw new IllegalStateException("Server rejected editor glow");
+            }
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
         List<String> lore = style.editorLines(lines);
-        MenuText.decorate(item, color("&d" + name), lore);
+        MenuText.decorate(item, meta, color("&d" + name), lore);
         return item;
     }
 

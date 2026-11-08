@@ -106,9 +106,12 @@ final class MenuRenderer {
     private ItemStack selectionPreview(EnchantSession session, Map<String, String> values) {
         ItemStack preview = session.snapshot();
         ItemMeta meta = preview.getItemMeta();
+        if (meta == null) {
+            throw new IllegalStateException("Server did not provide item metadata");
+        }
         List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
         lore.addAll(text.lore("ui.selection-lore", values));
-        MenuText.decorate(preview, text.text("ui.selection-name", values), lore);
+        MenuText.decorate(preview, meta, text.text("ui.selection-name", values), lore);
         return preview;
     }
 
