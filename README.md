@@ -56,6 +56,6 @@ Invalid startup configuration disables the plugin; a bad reload retains healthy 
 
 [Support and links](http://www.stealingdapenta.be/)
 
-Alpha builds are unstable. No project license has been selected.
+No project license has been selected.
 
 Build and source guidance: [CONTRIBUTING.md](CONTRIBUTING.md).
