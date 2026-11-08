@@ -39,6 +39,8 @@ Each display update reuses one metadata copy for lore, name, flags and glow, the
 
 Exclusive file creation must succeed before entering owned-file cleanup. Publish only complete backup generations and retain the newest recoverable bytes. A disk save and Bukkit publication are not one durable transaction.
 
+New backup filenames use canonical version-one UUIDs with monotonically increasing timestamps to preserve generation order across filesystem timestamp collisions and reopened stores. They sort ahead of legacy random-UUID backups; legacy generations retain their filesystem-time ordering.
+
 ## Version policy
 
 Maven owns the release version and filters only `plugin.yml` to synchronize packaged metadata; `config.yml` stays byte-for-byte unfiltered. Increment alpha.N for complete iterations of the same planned version. Before 1.0, patches cover fixes and minors cover features or breaking configuration, command, permission or API changes. After 1.0, breaking contracts require a major. Version 1.0.0 requires explicit stable-release approval. The historical 1.0.1 exception is not retroactively renamed.

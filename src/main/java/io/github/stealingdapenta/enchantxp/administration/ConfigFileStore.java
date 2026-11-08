@@ -31,6 +31,13 @@ import java.util.function.BooleanSupplier;
 class ConfigFileStore {
 
     static final int MAX_BYTES = 1024 * 1024;
+    private static final long UUID_EPOCH_OFFSET = 0x01b21dd213814000L;
+    private static final long UUID_MAX_TIMESTAMP = 0x0fffffffffffffffL;
+    private static final long UUID_TIME_LOW_MASK = 0xffffffffL;
+    private static final long UUID_TIME_MID_MASK = 0xffffL;
+    private static final long UUID_TIME_HIGH_MASK = 0xfffL;
+    private static final long UUID_VERSION_ONE = 0x1000L;
+    private static final long TIMESTAMP_UNITS_PER_MILLISECOND = 10_000L;
     private final Path file;
 
     ConfigFileStore(Path file) {
@@ -81,8 +88,8 @@ class ConfigFileStore {
 
     Path commit(Path staged, byte[] expectedHash, String contents, BooleanSupplier beginCommit) throws IOException {
         byte[] original = unchanged(expectedHash);
-        retainLatestBackup();
-        Path backup = sibling(".backup-");
+        long previousTimestamp = retainLatestBackup();
+        Path backup = nextBackup(previousTimestamp);
         writeBackup(original, backup);
         if (!beginCommit.getAsBoolean()) {
             throw new IOException("Save cancelled before replacing config.yml.");
@@ -140,20 +147,22 @@ class ConfigFileStore {
     }
 
     // Prune before creating, so failed/canceled attempts cannot grow an unbounded archive.
-    private void retainLatestBackup() throws IOException {
+    private long retainLatestBackup() throws IOException {
         List<Backup> backups = new ArrayList<>();
         Path directory = file.getParent() == null ? file.toAbsolutePath()
                                                         .getParent() : file.getParent();
         try (DirectoryStream<Path> children = Files.newDirectoryStream(directory)) {
             for (Path child : children) {
-                if (ownedBackup(child)) {
+                UUID id = ownedBackup(child);
+                if (id != null) {
                     BasicFileAttributes attributes = Files.readAttributes(child, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
                     if (regular(attributes)) {
-                        backups.add(new Backup(child, attributes));
+                        backups.add(new Backup(child, attributes, id));
                     }
                 }
             }
-            backups.sort(Comparator.comparing((Backup backup) -> backup.attributes.creationTime())
+            backups.sort(Comparator.comparingLong((Backup backup) -> backup.timestamp)
+                                   .thenComparing(backup -> backup.attributes.creationTime())
                                    .thenComparing(backup -> backup.attributes.lastModifiedTime())
                                    .thenComparing(backup -> backup.path.getFileName()
                                                                        .toString())
@@ -166,26 +175,46 @@ class ConfigFileStore {
                 }
                 delete(backup.path);
             }
+            return backups.isEmpty() ? 0 : backups.get(0).timestamp;
         } catch (IOException failure) {
             throw new IOException("Could not clean old config.yml backups; save was not started.", failure);
         }
     }
 
-    private boolean ownedBackup(Path path) {
+    private UUID ownedBackup(Path path) {
         String prefix = file.getFileName() + ".backup-";
         String name = path.getFileName()
                           .toString();
         if (!name.startsWith(prefix)) {
-            return false;
+            return null;
         }
         String suffix = name.substring(prefix.length());
         try {
-            return UUID.fromString(suffix)
-                       .toString()
-                       .equals(suffix);
+            UUID id = UUID.fromString(suffix);
+            return id.toString().equals(suffix) ? id : null;
         } catch (IllegalArgumentException notOwned) {
-            return false;
+            return null;
         }
+    }
+
+    /**
+     * Version-one UUID timestamps persist save order across reopened stores, timestamp collisions and clock rollback.
+     * Newly sequenced generations sort ahead of legacy random UUID backups; filesystem times order legacy generations.
+     */
+    private Path nextBackup(long previousTimestamp) throws IOException {
+        if (previousTimestamp == UUID_MAX_TIMESTAMP) {
+            throw new IOException("Config backup sequence is exhausted.");
+        }
+        long timestamp = Math.max(previousTimestamp + 1,
+                UUID_EPOCH_OFFSET + System.currentTimeMillis() * TIMESTAMP_UNITS_PER_MILLISECOND);
+        if (timestamp > UUID_MAX_TIMESTAMP || timestamp <= 0) {
+            throw new IOException("Config backup timestamp is outside the UUID range.");
+        }
+        long timeFields = ((timestamp & UUID_TIME_LOW_MASK) << 32) |
+                (((timestamp >>> 32) & UUID_TIME_MID_MASK) << 16) |
+                ((timestamp >>> 48) & UUID_TIME_HIGH_MASK) | UUID_VERSION_ONE;
+        UUID id = new UUID(timeFields, UUID.randomUUID().getLeastSignificantBits());
+        return file.resolveSibling(file.getFileName() + ".backup-" + id);
     }
 
     private static boolean regular(BasicFileAttributes attributes) {
@@ -196,10 +225,12 @@ class ConfigFileStore {
 
         private final Path path;
         private final BasicFileAttributes attributes;
+        private final long timestamp;
 
-        private Backup(Path path, BasicFileAttributes attributes) {
+        private Backup(Path path, BasicFileAttributes attributes, UUID id) {
             this.path = path;
             this.attributes = attributes;
+            this.timestamp = id.version() == 1 && id.variant() == 2 ? id.timestamp() : 0;
         }
     }
 
