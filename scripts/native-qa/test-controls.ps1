@@ -78,6 +78,30 @@ try {
     Assert-That (-not $process.HasExited) 'Timeout never claims shutdown or kills an unrelated process'
     Write-Output 'PASS: once-only stdin stop, successful wait and visible shutdown timeout'
 
+    $liveLog = Join-Path $root 'live.log'
+    $sharing = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+    $writer = [IO.File]::Open($liveLog, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, $sharing)
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes("Done (0.250s)!`n[EnchantQA] QA PASS live writer")
+        $writer.Write($bytes, 0, $bytes.Length)
+        $writer.Flush()
+        Assert-That ((Read-QaLog $liveLog) -eq [Text.Encoding]::UTF8.GetString($bytes)) 'An open write-capable handle permits live log reads'
+        $writer.SetLength(16MB)
+        $writer.Flush()
+        Assert-That ((Read-QaLog $liveLog).Length -eq 16MB) 'A log at the byte limit remains readable'
+        $writer.SetLength(16MB + 1)
+        $writer.Flush()
+        Assert-Throws { Read-QaLog $liveLog } 'An oversized live log is rejected with the writer still open'
+        $writer.SetLength($bytes.Length)
+        [IO.File]::Move($liveLog, (Join-Path $root 'rotated.log'))
+        Assert-That ((Read-QaLog $liveLog) -eq '') 'A rotated-away path is temporarily absent'
+    } finally { $writer.Dispose() }
+    $exclusive = [IO.File]::Open($liveLog, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+        Assert-Throws { Read-QaLog $liveLog } 'A real sharing denial remains a read failure'
+    } finally { $exclusive.Dispose() }
+    Write-Output 'PASS: shared live log reads, bounded bytes, rotation and surfaced read failures'
+
     $log = "Done (0.250s)!`n" + ((1..133 | ForEach-Object { "[EnchantQA] QA PASS assertion $_" }) -join "`n") +
         "`n[EnchantQA] QA SUMMARY passed=133 failed=0"
     Assert-That (Test-QaReadyLog $log) 'Burst output after Done retains readiness'

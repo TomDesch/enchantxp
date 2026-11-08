@@ -51,10 +51,38 @@ function New-QaDirectory {
 
 function Read-QaLog {
     param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) { return '' }
-    Assert-QaRegularPath $Path
-    if ((Get-Item -LiteralPath $Path).Length -gt 16MB) { throw 'QA log exceeded the bounded 16 MiB limit.' }
-    return [IO.File]::ReadAllText($Path)
+    $stream = $null
+    $contents = $null
+    $reader = $null
+    try {
+        Assert-QaRegularPath $Path
+        # Share with the server writer and permit rotation without closing its log handle.
+        $sharing = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+        $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, $sharing)
+        $contents = [IO.MemoryStream]::new()
+        $buffer = [byte[]]::new(65536)
+        $limit = 16MB
+        while ($true) {
+            $capacity = [int][Math]::Min($buffer.Length, $limit + 1 - $contents.Length)
+            $read = $stream.Read($buffer, 0, $capacity)
+            if ($read -eq 0) { break }
+            if ($contents.Length + $read -gt $limit) { throw 'QA log exceeded the bounded 16 MiB limit.' }
+            $contents.Write($buffer, 0, $read)
+        }
+        $contents.Position = 0
+        $reader = [IO.StreamReader]::new($contents, [Text.Encoding]::UTF8, $true)
+        return $reader.ReadToEnd()
+    } catch [System.Management.Automation.ItemNotFoundException] {
+        return ''
+    } catch [IO.FileNotFoundException] {
+        return ''
+    } catch [IO.DirectoryNotFoundException] {
+        return ''
+    } finally {
+        if ($reader) { $reader.Dispose() }
+        if ($contents) { $contents.Dispose() }
+        if ($stream) { $stream.Dispose() }
+    }
 }
 
 function Test-QaReadyLog {

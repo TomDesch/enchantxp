@@ -57,6 +57,8 @@ The build runs seven standalone ownership scenarios and prints its helper JAR pa
 
 Each run creates a fresh ignored direct child of `.playtest`, binds to localhost with online authentication and RCON/query disabled, and waits for 133 behavioral assertions. It sends and flushes stdin `stop`, waits at most 90 seconds, then checks the final log and exit code. Startup and assertion timeouts fail; a shutdown timeout reports the owned PID for inspection. The runner retains its own logs and world for diagnosis and never reuses, seeds or deletes existing server directories. Configuration restoration relinquishes ownership before the summary so later edits survive teardown.
 
+Live log reads share the server's open writer and permit rotation. The reader enforces a 16 MiB byte limit during reading; read failures propagate to graceful shutdown and a failed run.
+
 This checks native API, metadata, permissions, reload, shelves and configuration ownership. Authenticated-player purchases, client layout and audible sound still require a separate playtest. Native QA is separate from hosted CI because the exact server binaries and local EULA authorization are caller prerequisites.
 
 Maven wrapper Apache-2.0 notices are retained; the wrapper is tooling, not bundled plugin code.
