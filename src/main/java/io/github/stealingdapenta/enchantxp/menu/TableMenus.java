@@ -367,7 +367,12 @@ public final class TableMenus implements Listener {
             return;
         }
         boolean retry = false;
+        String enchantmentName = "unknown";
+        String materialName = "unknown";
         try {
+            // Capture only catalogue identifiers before any reentrant transaction or feedback mutation.
+            enchantmentName = holder.enchantment.getName();
+            materialName = session.snapshot().getType().name();
             int balance = fresh.mode == GameMode.CREATIVE ? 0 : balance(player);
             Map<String, String> values = renderer.values(player, session, holder);
             boolean success = transaction.commit(player, session, holder.enchantment, holder.level, () -> context(player, session), holder.quote);
@@ -387,7 +392,8 @@ public final class TableMenus implements Listener {
             message(player, "invalid-balance");
         } catch (RuntimeException failure) {
             plugin.getLogger()
-                  .log(Level.SEVERE, "Enchant transaction failed; attempted rollback", failure);
+                  .log(Level.SEVERE, "Enchant transaction failed; attempted rollback; enchantment=" + enchantmentName +
+                          ", level=" + holder.level + ", chargeRawXp=" + fresh.cost + ", material=" + materialName, failure);
             message(player, "failure");
         } finally {
             if (!retry) {

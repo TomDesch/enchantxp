@@ -1192,7 +1192,7 @@ class TableMenusTest {
         assertEquals(2, Enchantments.level(fixture.items.get(0), ServerFixture.SHARPNESS));
         assertEquals(900, Experience.total(fixture.level, fixture.progress));
         assertTrue(Arrays.asList(failure.getSuppressed()).contains(rollback));
-        verify(logger).log(eq(Level.SEVERE), contains("attempted rollback"), same(failure));
+        verify(logger).log(eq(Level.SEVERE), eq("Enchant transaction failed; attempted rollback; enchantment=DAMAGE_ALL, level=2, chargeRawXp=100, material=DIAMOND_SWORD"), same(failure));
         verify(fixture.player).sendMessage(contains("Enchanting failed"));
         verify(fixture.player, never()).sendMessage(contains("Confirmed"));
         assertNull(fixture.menu());
@@ -1222,7 +1222,7 @@ class TableMenusTest {
         assertEquals(1, fixture.items.get(1).getAmount());
         assertEquals(900, Experience.total(fixture.level, fixture.progress));
         assertTrue(Arrays.asList(failure.getSuppressed()).contains(rollback));
-        verify(logger).log(eq(Level.SEVERE), contains("attempted rollback"), same(failure));
+        verify(logger).log(eq(Level.SEVERE), eq("Enchant transaction failed; attempted rollback; enchantment=DAMAGE_ALL, level=2, chargeRawXp=100, material=BOOK"), same(failure));
         verify(fixture.player).sendMessage(contains("Enchanting failed"));
         verify(fixture.player, never()).sendMessage(contains("Confirmed"));
         assertNull(fixture.menu());
