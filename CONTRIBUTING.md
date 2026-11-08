@@ -39,7 +39,7 @@ Exclusive file creation must succeed before entering owned-file cleanup. Publish
 
 ## Version policy
 
-Keep Maven and plugin metadata synchronized. Increment alpha.N for complete iterations of the same planned version. Before 1.0, patches cover fixes and minors cover features or breaking configuration, command, permission or API changes. After 1.0, breaking contracts require a major. Version 1.0.0 requires explicit stable-release approval. The historical 1.0.1 exception is not retroactively renamed.
+Maven owns the release version and filters only `plugin.yml` to synchronize packaged metadata; `config.yml` stays byte-for-byte unfiltered. Increment alpha.N for complete iterations of the same planned version. Before 1.0, patches cover fixes and minors cover features or breaking configuration, command, permission or API changes. After 1.0, breaking contracts require a major. Version 1.0.0 requires explicit stable-release approval. The historical 1.0.1 exception is not retroactively renamed.
 
 Configuration schema numbers are independent build-defined integers. Increment them only for incompatible schema changes and document the required operator adaptation.
 
