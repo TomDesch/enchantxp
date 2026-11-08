@@ -3,9 +3,9 @@ package io.github.stealingdapenta.enchantxp.administration;
 import io.github.stealingdapenta.enchantxp.administration.ConfigEditor.Draft;
 import io.github.stealingdapenta.enchantxp.administration.ConfigEditor.Entry;
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
-import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
 import io.github.stealingdapenta.enchantxp.presentation.MenuText;
 import java.util.ArrayList;
@@ -116,7 +116,7 @@ final class EditorPages {
             levelOverrides(result, draft, route.substring(EditorRoutes.LEVELS.length()));
         } else if (route.startsWith(EditorRoutes.LEVEL)) {
             String[] parts = route.split(":");
-            addField(result, draft, ConfigFields.integer(ENCHANTMENT_PATH + parts[1] + ".levels." + parts[2], "Level " + parts[2] + " total XP", "Set the cumulative total. Other levels still use the starting price.", 1, Prices.HARD_MAX_COST));
+            addField(result, draft, ConfigFields.integer(ENCHANTMENT_PATH + parts[1] + ".levels." + parts[2], "Level " + parts[2] + " total XP", "Set the cumulative total. Other levels still use the starting price.", NumericRule.PRICE));
         }
     }
 
@@ -157,7 +157,7 @@ final class EditorPages {
             List<String> keys = new ArrayList<>(levels.getKeys(false));
             keys.sort(Comparator.comparingInt(Integer::parseInt));
             for (String level : keys) {
-                addField(result, draft, ConfigFields.integer(path + "." + level, "Level " + level + " total XP", "Cumulative value, not the upgrade charge. Reset inherits the calculated total.", 1, Prices.HARD_MAX_COST));
+                addField(result, draft, ConfigFields.integer(path + "." + level, "Level " + level + " total XP", "Cumulative value, not the upgrade charge. Reset inherits the calculated total.", NumericRule.PRICE));
             }
         }
         result.add(new Entry(Material.SLIME_BALL, "Add level price", Arrays.asList("Only the levels you add are overridden.", "Totals must rise at every level when you Apply.", LoreStyle.action("Left-click to choose a level.")),
@@ -278,11 +278,11 @@ final class EditorPages {
     private ConfigFields.Field capField(String path, String name) {
         return ConfigFields.integer(path, name,
                                     "Maximum enchantment level for this item, not XP price. For example, Diamond Sword -> Sharpness -> 10. 0 disables this option. This replaces the enchantment cap. Reset inherits the applicable fallback cap. BOOK covers both book types unless ENCHANTED_BOOK has its own cap. Global disabled status, legality, price and permissions still apply.",
-                                    0, EnchantPolicy.MAX_LEVEL);
+                                    NumericRule.LEVEL_CAP);
     }
 
     private ConfigFields.Field levelChoice() {
-        return ConfigFields.integer(ENCHANTMENT_PATH + "NAME.levels", "Level to override", "70 is valid; 255 is the hard bound. A configured max-cost can hide expensive options.", 1, EnchantPolicy.MAX_LEVEL);
+        return ConfigFields.integer(ENCHANTMENT_PATH + "NAME.levels", "Level to override", "70 is valid; " + NumericRule.LEVEL.maximumInteger() + " is the hard bound. A configured max-cost can hide expensive options.", NumericRule.LEVEL);
     }
 
     private Object inheritedCap(Draft draft, String material, String name) {

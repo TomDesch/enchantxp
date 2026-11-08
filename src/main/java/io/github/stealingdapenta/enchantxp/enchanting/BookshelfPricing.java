@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.enchanting;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -35,13 +36,13 @@ public final class BookshelfPricing {
         ConfigurationSection defaults = ConfigValues.defaults();
         ConfigurationSection section = ConfigValues.section(config, "bookshelf-pricing");
         ConfigValues.keys(section, "enabled", "zero-shelf-penalty-percent", "per-bookshelf-reduction-percent", "max-bookshelves");
-        return new BookshelfPricing(ConfigValues.bool(config, defaults, "bookshelf-pricing.enabled"), integer(config, defaults, "zero-shelf-penalty-percent", 0, 1000000), integer(config, defaults, "per-bookshelf-reduction-percent", 0, 1000000),
-                                    integer(config, defaults, "max-bookshelves", 1, 15));
+        return new BookshelfPricing(ConfigValues.bool(config, defaults, "bookshelf-pricing.enabled"), integer(config, defaults, "zero-shelf-penalty-percent", NumericRule.PERCENT), integer(config, defaults, "per-bookshelf-reduction-percent", NumericRule.PERCENT),
+                                    integer(config, defaults, "max-bookshelves", NumericRule.SHELVES));
     }
 
     /** Returns identity pricing with scans disabled and the vanilla shelf maximum of 15. */
     public static BookshelfPricing disabled() {
-        return new BookshelfPricing(false, 0, 0, 15);
+        return new BookshelfPricing(false, 0, 0, NumericRule.SHELVES.maximumInteger());
     }
 
     /** Reports whether quotes use shelf surcharges and scans inspect the world. */
@@ -54,9 +55,9 @@ public final class BookshelfPricing {
         return maximum;
     }
 
-    private static int integer(ConfigurationSection config, ConfigurationSection defaults, String key, int min, int max) {
+    private static int integer(ConfigurationSection config, ConfigurationSection defaults, String key, NumericRule rule) {
         String path = "bookshelf-pricing." + key;
-        return ConfigValues.integer(ConfigValues.value(config, defaults, path), path, min, max);
+        return rule.readInteger(ConfigValues.value(config, defaults, path), path);
     }
 
     /**
@@ -66,7 +67,7 @@ public final class BookshelfPricing {
      */
     public long modify(long baseDifference, int shelves) {
         // Maximum base valuation is 1000000 * 255^2; the bounded percentage product fits long.
-        if (baseDifference <= 0 || baseDifference > (long) Prices.HARD_MAX_COST * EnchantPolicy.MAX_LEVEL * EnchantPolicy.MAX_LEVEL) {
+        if (baseDifference <= 0 || baseDifference > Prices.cumulative(Prices.HARD_MAX_COST, EnchantPolicy.MAX_LEVEL)) {
             return -1;
         }
         long extra = enabled ? Math.max(0L, penalty - (long) Math.min(Math.max(0, shelves), maximum) * reduction) : 0;

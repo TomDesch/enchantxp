@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.enchanting;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,7 +14,7 @@ import org.bukkit.enchantments.Enchantment;
  */
 public final class Prices {
 
-    public static final int HARD_MAX_COST = 1000000;
+    public static final int HARD_MAX_COST = NumericRule.PRICE.maximumInteger();
     private static final String BASE_XP_KEY = "base-xp";
     private static final String ENCHANTMENT_PATH = "enchantments.";
     private static final String LEVELS_KEY = "levels";
@@ -36,10 +37,7 @@ public final class Prices {
      */
     public static Prices read(ConfigurationSection config) {
         int base = boundedInteger(config.get(BASE_XP_KEY), BASE_XP_KEY);
-        int maximum = ConfigValues.integer(config.get("max-cost"), "max-cost", -1, HARD_MAX_COST);
-        if (maximum == 0) {
-            throw new IllegalArgumentException("max-cost must be -1 (no configured ceiling) or 1..1000000");
-        }
+        int maximum = NumericRule.MAX_COST.readInteger(config.get("max-cost"), "max-cost");
         if (maximum != -1 && base > maximum) {
             throw new IllegalArgumentException("base-xp must not exceed max-cost");
         }
@@ -111,7 +109,7 @@ public final class Prices {
     }
 
     private static int boundedInteger(Object value, String key) {
-        return ConfigValues.integer(value, key, 1, HARD_MAX_COST);
+        return NumericRule.PRICE.readInteger(value, key);
     }
 
     /**
@@ -198,8 +196,16 @@ public final class Prices {
         if (explicit != null && explicit.containsKey(level)) {
             return explicit.get(level);
         }
-        long startingPrice = bases.getOrDefault(name, base);
-        long levelFactor = level;
-        return Math.multiplyExact(Math.multiplyExact(startingPrice, levelFactor), levelFactor);
+        return cumulative(bases.getOrDefault(name, base), level);
+    }
+
+    /**
+     * Calculates the fallback cumulative valuation with checked long arithmetic.
+     * Shared by runtime quotes and editor inherited-value display; charge limits are checked separately.
+     *
+     * @throws ArithmeticException if the product cannot fit a signed long
+     */
+    public static long cumulative(long startingPrice, int level) {
+        return Math.multiplyExact(Math.multiplyExact(startingPrice, (long) level), (long) level);
     }
 }

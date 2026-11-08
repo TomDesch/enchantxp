@@ -2,6 +2,8 @@ package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.configuration.Settings;
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
+import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
@@ -32,6 +34,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
@@ -1143,6 +1146,82 @@ class ConfigEditorTest {
         click(findSlot("Sharpness"), ClickType.RIGHT);
         assertFalse(draft().document.contains("items.DIAMOND_SWORD.max-levels.DAMAGE_ALL", true));
         assertEquals(5, Settings.read(draft().document).policy().maximum(Material.DIAMOND_SWORD, ServerFixture.SHARPNESS));
+    }
+
+    @Test
+    void numericEditorFieldsAndRuntimeAgreeAtBoundsWithoutYamlCoercion() throws Exception {
+        ConfigFields fields = new ConfigFields();
+        assertNumericAgreement(fields.general().get(0), new String[]{"1", "1000000"}, new String[]{"0", "1000001", "2147483648", "1.5"});
+        assertNumericAgreement(fields.general().get(1), new String[]{"-1", "1", "1000000"}, new String[]{"-2", "0", "1000001"});
+        assertNumericAgreement(fields.general().get(2), new String[]{"3", "6"}, new String[]{"2", "7"});
+        assertNumericAgreement(fields.enchantment("DAMAGE_ALL").get(2), new String[]{"1", "1000000"}, new String[]{"0", "1000001"});
+        assertNumericAgreement(fields.enchantment("DAMAGE_ALL").get(3), new String[]{"0", "70", "255"}, new String[]{"-1", "256"});
+        for (ConfigFields.Field field : fields.shelves()) {
+            if (field.kind == ConfigFields.Kind.INTEGER) {
+                boolean shelfCount = field.path.endsWith("max-bookshelves");
+                assertNumericAgreement(field, shelfCount ? new String[]{"1", "15"} : new String[]{"0", "1000000"},
+                        shelfCount ? new String[]{"0", "16"} : new String[]{"-1", "1000001"});
+            }
+        }
+        ConfigFields.Field data = fields.leaves("ui.icons.confirm").stream().filter(field -> field.path.endsWith(".data")).findFirst().get();
+        assertNumericAgreement(data, new String[]{"0", "32767"}, new String[]{"-1", "32768"});
+    }
+
+    @Test
+    void decimalEditorFieldsAndRuntimeRejectNonfiniteNumbersAndAcceptNumericYamlOnly() throws Exception {
+        ConfigFields fields = new ConfigFields();
+        assertNumericAgreement(fields.sounds("click").get(1), new String[]{"0", "0.5", "4"}, new String[]{"-0.01", "4.01", "NaN", "Infinity", "-Infinity", "1e309"});
+        assertNumericAgreement(fields.sounds("click").get(2), new String[]{"0", "0.5", "2"}, new String[]{"-0.01", "2.01", "NaN", "Infinity"});
+    }
+
+    private void assertNumericAgreement(ConfigFields.Field field, String[] accepted, String[] rejected) throws Exception {
+        for (String input : accepted) {
+            YamlConfiguration document = yaml("config-version: 1\nbase-xp: 1\nmax-cost: -1\n");
+            Object parsed = field.parse(input);
+            document.set(field.path, parsed);
+            assertDoesNotThrow(() -> Settings.read(document), field.path + "=" + input);
+            document.set(field.path, input);
+            assertThrows(IllegalArgumentException.class, () -> Settings.read(document), "YAML numeric string: " + field.path);
+            if (field.kind == ConfigFields.Kind.INTEGER) {
+                document.set(field.path, ((Number) parsed).longValue());
+                assertDoesNotThrow(() -> Settings.read(document));
+                document.set(field.path, ((Number) parsed).doubleValue());
+                assertThrows(IllegalArgumentException.class, () -> Settings.read(document));
+            }
+        }
+        for (String input : rejected) {
+            assertThrows(IllegalArgumentException.class, () -> field.parse(input), field.path + "=" + input);
+            YamlConfiguration document = yaml("config-version: 1\nbase-xp: 1\nmax-cost: -1\n");
+            if (field.kind == ConfigFields.Kind.INTEGER && !input.contains(".")) {
+                document.set(field.path, Long.parseLong(input));
+            } else {
+                document.set(field.path, Double.parseDouble(input));
+            }
+            assertThrows(IllegalArgumentException.class, () -> Settings.read(document), field.path + "=" + input);
+        }
+    }
+
+    @Test
+    void inheritedEditorCumulativePricesMatchRuntimeQuotesAndPreserveExplicitTotals() throws Exception {
+        ConfigFields fields = new ConfigFields();
+        YamlConfiguration document = yaml("config-version: 1\nbase-xp: 1000000\nmax-cost: -1\n");
+        String path = "enchantments.DAMAGE_ALL.levels.255";
+        Prices prices = Prices.read(document);
+        long displayed = ((Number) fields.effective(document, path)).longValue();
+        assertEquals(65025000000L, displayed);
+        assertEquals(displayed, BookshelfPricing.disabled().quote(prices, ServerFixture.SHARPNESS, 0, 255, 0));
+        assertFalse(prices.offers(ServerFixture.SHARPNESS, 255));
+        document.set("enchantments.DAMAGE_ALL.base-xp", 100);
+        document.set("enchantments.DAMAGE_ALL.levels.3", 700);
+        prices = Prices.read(document);
+        assertEquals(400L, fields.effective(document, "enchantments.DAMAGE_ALL.levels.2"));
+        assertEquals(700, fields.effective(document, "enchantments.DAMAGE_ALL.levels.3"));
+        assertEquals(300, prices.upgradeCost(ServerFixture.SHARPNESS, 2, 3));
+        document.set("enchantments.DAMAGE_ALL.levels.3", 1600);
+        assertThrows(IllegalArgumentException.class, () -> Prices.read(document));
+        document.set("base-xp", Long.MAX_VALUE);
+        document.set("enchantments.DAMAGE_ALL", null);
+        assertThrows(ArithmeticException.class, () -> fields.effective(document, path));
     }
 
     @Test

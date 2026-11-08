@@ -31,6 +31,8 @@ Dependencies flow from administration to menu/configuration, from menu to config
 
 Write useful Javadoc contracts in Markdown-readable paragraphs, lists and backticks inside `/** ... */`, retaining `@param`, `@return` and `@throws` when useful. Native Markdown Javadoc (`///`) requires JDK 23 and is not used with this JDK 21 / Java 8 toolchain.
 
+Shared numeric settings use immutable `NumericRule` contracts for runtime YAML bounds, chat parsing, prompts and units. YAML numeric strings and decimal values for integer settings remain invalid. Cumulative inherited-price display and runtime pricing use `Prices.cumulative`; purchase limits and increasing override validation remain separate.
+
 Prepare cloned item results before mutation, then repeat identity/context, output-space, permission and quote checks. Claim the session before charging. Compensation must prove the result is gone before returning source items or XP; keep those phases and reentrant lifecycle fences ordered.
 
 Exclusive file creation must succeed before entering owned-file cleanup. Publish only complete backup generations and retain the newest recoverable bytes. A disk save and Bukkit publication are not one durable transaction.

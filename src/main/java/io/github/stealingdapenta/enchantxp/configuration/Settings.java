@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.configuration;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 import io.github.stealingdapenta.enchantxp.enchanting.BookshelfPricing;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPermissions;
 import io.github.stealingdapenta.enchantxp.enchanting.EnchantPolicy;
@@ -44,7 +45,7 @@ public final class Settings {
         }
         Prices prices = Prices.read(config);
         EnchantPolicy policy = EnchantPolicy.read(config);
-        int rows = ConfigValues.integer(ConfigValues.value(config, ConfigValues.defaults(), "ui.rows"), "ui.rows", 3, 6);
+        int rows = NumericRule.ROWS.readInteger(ConfigValues.value(config, ConfigValues.defaults(), "ui.rows"), "ui.rows");
         return new Settings(prices, policy, MenuText.read(config), rows, BookshelfPricing.read(config), EnchantPermissions.read(config), MenuSounds.read(config));
     }
 

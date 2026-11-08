@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.presentation;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,8 +15,6 @@ import org.bukkit.entity.Player;
  */
 public final class MenuSounds {
 
-    private static final float MAX_VOLUME = 4;
-    private static final float MAX_PITCH = 2;
     private static final String SOUND_ERROR = " must be a legacy sound name or empty string";
     private final Map<String, Effect> effects;
     private final boolean enabled;
@@ -43,7 +42,7 @@ public final class MenuSounds {
     private static Effect readEffect(ConfigurationSection config, ConfigurationSection defaults, String path) {
         ConfigValues.keys(ConfigValues.section(config, path), "sound", "volume", "pitch");
         Sound sound = sound(ConfigValues.value(config, defaults, path + ".sound"), path + ".sound");
-        return new Effect(sound, number(config, defaults, path + ".volume", 0, MAX_VOLUME), number(config, defaults, path + ".pitch", 0, MAX_PITCH));
+        return new Effect(sound, number(config, defaults, path + ".volume", NumericRule.VOLUME), number(config, defaults, path + ".pitch", NumericRule.PITCH));
     }
 
     private static Sound sound(Object name, String path) {
@@ -57,16 +56,8 @@ public final class MenuSounds {
         }
     }
 
-    private static float number(ConfigurationSection config, ConfigurationSection defaults, String path, float min, float max) {
-        Object value = ConfigValues.value(config, defaults, path);
-        if (!(value instanceof Number)) {
-            throw new IllegalArgumentException(path + " must be numeric");
-        }
-        double number = ((Number) value).doubleValue();
-        if (!Double.isFinite(number) || number < min || number > max) {
-            throw new IllegalArgumentException(path + " must be finite and between " + min + " and " + max);
-        }
-        return (float) number;
+    private static float number(ConfigurationSection config, ConfigurationSection defaults, String path, NumericRule rule) {
+        return (float) rule.readDecimal(ConfigValues.value(config, defaults, path), path);
     }
 
     /** Plays a known effect key (`click`, `success`, `insufficient`) privately on the server thread, unless silent or disabled. */

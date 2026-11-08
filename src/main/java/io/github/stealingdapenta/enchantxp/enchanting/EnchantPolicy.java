@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.enchanting;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 
 import java.util.Collections;
 import java.util.EnumMap;
@@ -15,7 +16,7 @@ import org.bukkit.enchantments.Enchantment;
  */
 public final class EnchantPolicy {
 
-    public static final int MAX_LEVEL = 255;
+    public static final int MAX_LEVEL = NumericRule.LEVEL_CAP.maximumInteger();
     private static final String MAX_LEVEL_KEY = "max-level";
     private static final String ENABLED_KEY = "enabled";
     private final Map<String, Integer> limits;
@@ -136,7 +137,7 @@ public final class EnchantPolicy {
     }
 
     private static int cap(Object value, String name, String path) {
-        int cap = ConfigValues.integer(value, path, 0, MAX_LEVEL);
+        int cap = NumericRule.LEVEL_CAP.readInteger(value, path);
         Enchantment enchantment = Enchantment.getByName(name);
         int start = enchantment == null ? 1 : enchantment.getStartLevel();
         if (cap != 0 && cap < start) {

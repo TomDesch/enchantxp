@@ -1,6 +1,8 @@
 package io.github.stealingdapenta.enchantxp.administration;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
+import io.github.stealingdapenta.enchantxp.enchanting.Prices;
 import io.github.stealingdapenta.enchantxp.presentation.LoreStyle;
 
 import java.util.ArrayList;
@@ -37,17 +39,17 @@ final class ConfigFields {
         final String name;
         final String help;
         final Kind kind;
-        private final NumericInput numeric;
+        private final NumericRule numeric;
 
-        Field(String path, String name, String help, Kind kind, double minimum, double maximum) {
-            this(path, name, help, kind, new NumericInput(minimum, maximum, null, ""));
+        Field(String path, String name, String help, Kind kind) {
+            this(path, name, help, kind, null);
         }
 
-        Field(String path, String name, String help, Kind kind, double minimum, double maximum, Integer sentinel) {
-            this(path, name, help, kind, new NumericInput(minimum, maximum, sentinel, ""));
+        Field(String path, String name, String help, NumericRule numeric) {
+            this(path, name, help, numeric.whole() ? Kind.INTEGER : Kind.DECIMAL, numeric);
         }
 
-        Field(String path, String name, String help, Kind kind, NumericInput numeric) {
+        private Field(String path, String name, String help, Kind kind, NumericRule numeric) {
             this.path = path;
             this.name = name;
             this.help = help;
@@ -61,9 +63,12 @@ final class ConfigFields {
             }
             switch (kind) {
                 case INTEGER:
-                    return integerInput(input);
                 case DECIMAL:
-                    return decimalInput(input);
+                    try {
+                        return numeric.parse(input);
+                    } catch (IllegalArgumentException failure) {
+                        throw new IllegalArgumentException(prompt());
+                    }
                 case MATERIAL:
                     return ConfigValues.material(input.toUpperCase(Locale.ROOT), name)
                                        .name();
@@ -81,10 +86,8 @@ final class ConfigFields {
             }
             switch (kind) {
                 case INTEGER:
-                    return setting + "Enter a whole number from " + display((int) numeric.minimum) + " to " + display((int) numeric.maximum) + " inclusive." + (numeric.sentinel == null ? "" : " Or " + numeric.sentinel + " to disable the configured ceiling.") + unitInputHelp() + " "
-                            + help;
                 case DECIMAL:
-                    return setting + "Enter a number from " + numeric.minimum + " to " + numeric.maximum + " inclusive. " + help;
+                    return setting + numeric.instruction() + " " + help;
                 case MATERIAL:
                     return setting + "Enter a Minecraft 1.12.2 item name, for example DIAMOND_SWORD. Blank is not allowed.";
                 case SOUND:
@@ -95,35 +98,7 @@ final class ConfigFields {
         }
 
         String display(Object value) {
-            return String.valueOf(value) + numeric.unit;
-        }
-
-        private String unitInputHelp() {
-            return numeric.unit.isEmpty() ? "" : " Enter digits only; the " + numeric.unit + " unit is shown automatically.";
-        }
-
-        private int integerInput(String input) {
-            try {
-                int number = Integer.parseInt(input);
-                if ((number >= numeric.minimum && number <= numeric.maximum) || (numeric.sentinel != null && number == numeric.sentinel)) {
-                    return number;
-                }
-            } catch (NumberFormatException ignored) {
-                // Invalid digits and invalid bounds share the metadata-derived instruction.
-            }
-            throw new IllegalArgumentException(prompt());
-        }
-
-        private double decimalInput(String input) {
-            try {
-                double number = Double.parseDouble(input);
-                if (Double.isFinite(number) && number >= numeric.minimum && number <= numeric.maximum) {
-                    return number;
-                }
-            } catch (NumberFormatException ignored) {
-                // Report the setting and its bounds, not a parser exception.
-            }
-            throw new IllegalArgumentException(prompt());
+            return numeric == null ? String.valueOf(value) : numeric.display(value);
         }
 
         private String soundInput(String input) {
@@ -139,28 +114,13 @@ final class ConfigFields {
         }
     }
 
-    private static final class NumericInput {
-
-        private final double minimum;
-        private final double maximum;
-        private final Integer sentinel;
-        private final String unit;
-
-        private NumericInput(double minimum, double maximum, Integer sentinel, String unit) {
-            this.minimum = minimum;
-            this.maximum = maximum;
-            this.sentinel = sentinel;
-            this.unit = unit;
-        }
-    }
-
     private final YamlConfiguration defaults = ConfigValues.defaults();
 
     List<Field> general() {
         List<Field> fields = new ArrayList<>();
-        fields.add(integer(BASE_XP, "Starting price", "Global fallback for enchantments without their own starting price. Total XP = starting price x level squared.", 1, 1000000));
-        fields.add(new Field("max-cost", "Purchase limit", "A finite ceiling hides expensive purchase options. -1 shows every legal, permitted, representable charge. Raw XP must still fit a signed integer.", Kind.INTEGER, 1, 1000000, -1));
-        fields.add(integer("ui.rows", "Menu height", "3 to 6 rows. More rows show more choices.", 3, 6));
+        fields.add(integer(BASE_XP, "Starting price", "Global fallback for enchantments without their own starting price. Total XP = starting price x level squared.", NumericRule.PRICE));
+        fields.add(integer("max-cost", "Purchase limit", "A finite ceiling hides expensive purchase options. -1 shows every legal, permitted, representable charge. Raw XP must still fit a signed integer.", NumericRule.MAX_COST));
+        fields.add(integer("ui.rows", "Menu height", "More rows show more choices.", NumericRule.ROWS));
         return fields;
     }
 
@@ -170,7 +130,7 @@ final class ConfigFields {
         fields.add(percent("bookshelf-pricing.zero-shelf-penalty-percent", "No-shelf surcharge", "Extra cost when no bookshelves are nearby."));
         fields.add(percent("bookshelf-pricing.per-bookshelf-reduction-percent", "Discount per shelf", "Removes this many surcharge points per shelf."));
         fields.add(
-                integer("bookshelf-pricing.max-bookshelves", "Shelf limit", "Vanilla 1.12.2 counts at most 15. Shelves sit two blocks out, at table height or one above. The intervening gap must be air at both heights. No chunks are loaded.", 1, 15));
+                integer("bookshelf-pricing.max-bookshelves", "Shelf limit", "Vanilla 1.12.2 counts at most " + NumericRule.SHELVES.maximumInteger() + ". Shelves sit two blocks out, at table height or one above. The intervening gap must be air at both heights. No chunks are loaded.", NumericRule.SHELVES));
         return fields;
     }
 
@@ -179,17 +139,17 @@ final class ConfigFields {
         List<Field> fields = new ArrayList<>();
         fields.add(text(path + "name", "Display name", "The name players see. & color codes work here."));
         fields.add(bool(path + "enabled", "Allow purchases", "Off blocks this enchantment on every item."));
-        fields.add(integer(path + BASE_XP, "Starting price", "Overrides the global fallback for this enchantment only. Total XP = this starting price x level squared.", 1, 1000000));
-        fields.add(integer(path + "max-level", "Highest level", "0 disables this purchase option. 70 is valid; 255 is the hard bound. Price filters, item caps and permissions still apply. Reset uses the vanilla cap.", 0, 255));
+        fields.add(integer(path + BASE_XP, "Starting price", "Overrides the global fallback for this enchantment only. Total XP = this starting price x level squared.", NumericRule.PRICE));
+        fields.add(integer(path + "max-level", "Highest level", "0 disables this purchase option. 70 is valid; " + NumericRule.LEVEL_CAP.maximumInteger() + " is the hard bound. Price filters, item caps and permissions still apply. Reset uses the vanilla cap.", NumericRule.LEVEL_CAP));
         return fields;
     }
 
     List<Field> sounds(String category) {
         String path = "sounds." + category + ".";
         List<Field> fields = new ArrayList<>();
-        fields.add(new Field(path + "sound", "Sound", "A 1.12.2 sound name. <blank> turns this sound off.", Kind.SOUND, 0, 0));
-        fields.add(new Field(path + "volume", "Volume", "0 is silent; 1 is normal volume.", Kind.DECIMAL, 0, 4));
-        fields.add(new Field(path + "pitch", "Pitch", "1 is normal pitch; lower sounds deeper.", Kind.DECIMAL, 0, 2));
+        fields.add(new Field(path + "sound", "Sound", "A 1.12.2 sound name. <blank> turns this sound off.", Kind.SOUND));
+        fields.add(new Field(path + "volume", "Volume", "0 is silent; 1 is normal volume.", NumericRule.VOLUME));
+        fields.add(new Field(path + "pitch", "Pitch", "1 is normal pitch; lower sounds deeper.", NumericRule.PITCH));
         return fields;
     }
 
@@ -203,11 +163,11 @@ final class ConfigFields {
             String path = section + "." + key;
             Object value = defaults.get(path);
             if (key.equals("material")) {
-                fields.add(new Field(path, "Item", "Use a legacy 1.12.2 item name.", Kind.MATERIAL, 0, 0));
+                fields.add(new Field(path, "Item", "Use a legacy 1.12.2 item name.", Kind.MATERIAL));
             } else if (key.equals("data")) {
-                fields.add(integer(path, "Item data", "Legacy item variant or durability (0 to 32767).", 0, Short.MAX_VALUE));
+                fields.add(integer(path, "Item data", "Legacy item variant or durability.", NumericRule.ITEM_DATA));
             } else if (value instanceof List) {
-                fields.add(new Field(path, displayName(path, key), "Edit, add or remove lines. Blank lines are allowed.", Kind.LINES, 0, 0));
+                fields.add(new Field(path, displayName(path, key), "Edit, add or remove lines. Blank lines are allowed.", Kind.LINES));
             } else {
                 fields.add(text(path, displayName(path, key), help(path)));
             }
@@ -240,7 +200,7 @@ final class ConfigFields {
             String[] parts = path.split("\\.");
             Object base = document.get(ENCHANTMENTS + parts[1] + "." + BASE_XP, document.get(BASE_XP));
             int level = Integer.parseInt(parts[3]);
-            return ((Number) base).longValue() * level * level;
+            return Prices.cumulative(((Number) base).longValue(), level);
         }
         if (path.endsWith("." + BASE_XP)) {
             return document.get(BASE_XP);
@@ -261,20 +221,20 @@ final class ConfigFields {
                                                                     .replace('_', '-'));
     }
 
-    static Field integer(String path, String name, String help, int min, int max) {
-        return new Field(path, name, help, Kind.INTEGER, min, max);
+    static Field integer(String path, String name, String help, NumericRule rule) {
+        return new Field(path, name, help, rule);
     }
 
     private static Field percent(String path, String name, String help) {
-        return new Field(path, name, help, Kind.INTEGER, new NumericInput(0, 1000000, null, "%"));
+        return integer(path, name, help, NumericRule.PERCENT);
     }
 
     static Field bool(String path, String name, String help) {
-        return new Field(path, name, help, Kind.BOOLEAN, 0, 0);
+        return new Field(path, name, help, Kind.BOOLEAN);
     }
 
     static Field text(String path, String name, String help) {
-        return new Field(path, name, help, Kind.TEXT, 0, 0);
+        return new Field(path, name, help, Kind.TEXT);
     }
 
     static String textPrompt(String name, boolean blankable) {

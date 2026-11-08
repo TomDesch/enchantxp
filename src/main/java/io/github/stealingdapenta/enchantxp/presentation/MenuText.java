@@ -1,6 +1,7 @@
 package io.github.stealingdapenta.enchantxp.presentation;
 
 import io.github.stealingdapenta.enchantxp.configuration.values.ConfigValues;
+import io.github.stealingdapenta.enchantxp.configuration.values.NumericRule;
 import io.github.stealingdapenta.enchantxp.enchanting.Enchantments;
 import java.util.Arrays;
 import java.util.Collections;
@@ -84,7 +85,7 @@ public final class MenuText {
         if (path.endsWith(".material")) {
             materials.put(path, ConfigValues.material(value, path));
         } else if (path.endsWith(".data")) {
-            data.put(path, (short) ConfigValues.integer(value, path, 0, Short.MAX_VALUE));
+            data.put(path, (short) NumericRule.ITEM_DATA.readInteger(value, path));
         } else if (defaults.get(path) instanceof List) {
             lists.put(path, readLore(config, path, value));
         } else {
