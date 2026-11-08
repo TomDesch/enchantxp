@@ -29,7 +29,7 @@ def inspect_jar(artifact, version):
         require(len(names) == len(set(names)), "Duplicate archive entries")
         require(sum(entry.file_size for entry in entries) <= 16 * 1024 * 1024, "Archive too large")
         require(all(entry.file_size <= 4 * 1024 * 1024 for entry in entries), "Oversized entry")
-        for required in ("plugin.yml", "config.yml", "META-INF/maven/io.github.stealingdapenta/enchantxp/pom.xml"):
+        for required in ("plugin.yml", "config.yml", "META-INF/LICENSE", "META-INF/maven/io.github.stealingdapenta/enchantxp/pom.xml"):
             require(required in names, "Missing " + required)
         require("paper-plugin.yml" not in names, "Paper-only metadata must not be bundled")
         classes = 0

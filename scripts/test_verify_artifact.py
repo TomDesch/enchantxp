@@ -25,6 +25,12 @@ class ArtifactCheckTest(unittest.TestCase):
     def test_valid_artifact_passes(self):
         self.assertGreater(inspect_jar(self.archive(self.entries), self.version), 0)
 
+    def test_missing_license_is_rejected(self):
+        entries = dict(self.entries)
+        entries.pop("META-INF/LICENSE", None)
+        with self.assertRaisesRegex(ValueError, "Missing META-INF/LICENSE"):
+            inspect_jar(self.archive(entries), self.version)
+
     def test_metadata_resource_bytecode_and_dependency_defects_are_rejected(self):
         main = "io/github/stealingdapenta/enchantxp/EnchantXpPlugin.class"
         for defect in ("api-version", "version", "resource", "bytecode", "server", "test", "test-support", "paper-reference", "paper-metadata"):

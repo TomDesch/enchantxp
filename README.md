@@ -56,6 +56,6 @@ Invalid startup configuration disables the plugin; a bad reload retains healthy 
 
 [Support and links](http://www.stealingdapenta.be/)
 
-No project license has been selected.
+Licensed under the [MIT License](LICENSE).
 
 Build and source guidance: [CONTRIBUTING.md](CONTRIBUTING.md).
