@@ -34,10 +34,8 @@ jobs:
         run: ./mvnw -B -ntp verify
 
       - name: Test artifact inspection
-        shell: python
-        run: |
-          import runpy
-          runpy.run_path("scripts/test_verify_artifact.py", run_name="__main__")
+        shell: pwsh
+        run: python scripts/test_verify_artifact.py
 
       - name: Inspect deployment JAR
         id: artifact
