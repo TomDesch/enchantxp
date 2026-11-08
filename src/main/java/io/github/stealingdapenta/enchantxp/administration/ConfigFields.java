@@ -301,7 +301,7 @@ final class ConfigFields {
             case "no-upgrades":
                 return copy("No more upgrades", "When the item has no upgrades within its allowed limits.");
             case "unavailable":
-                return copy("Upgrades cost too much", "When all remaining upgrades exceed the purchase limit.");
+                return copy("Upgrades unavailable", "When permissions or server price limits hide all remaining legal upgrades.");
             case "insufficient":
                 return copy("Not enough XP", "When a player cannot afford the selected upgrade.");
             case "invalid-balance":

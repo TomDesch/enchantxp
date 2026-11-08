@@ -1272,6 +1272,15 @@ class ConfigEditorTest {
         String help = ChatColor.stripColor(String.join(" ", fixture.view.getTopInventory().getItem(context).getItemMeta().getLore()));
         assertTrue(help.contains("selected item"));
         assertTrue(help.contains("table"));
+        int unavailable = findSlot("Upgrades unavailable");
+        List<String> unavailableLore = fixture.view.getTopInventory().getItem(unavailable).getItemMeta().getLore();
+        String unavailableHelp = ChatColor.stripColor(String.join(" ", unavailableLore));
+        assertTrue(unavailableHelp.contains("When permissions or server price limits hide all remaining legal upgrades."));
+        assertTrue(unavailableHelp.startsWith("Value: "));
+        assertTrue(unavailableHelp.contains("Your permissions or the server price limits"));
+        clickNamed("Upgrades unavailable");
+        input("Unavailable for {player}");
+        assertEquals("Unavailable for {player}", draft().document.getString("messages.unavailable"));
         clickNamed("Cannot use the table");
         input("Access changed for {player}");
         assertEquals("Access changed for {player}", draft().document.getString("messages.eligibility"));
@@ -1279,6 +1288,7 @@ class ConfigEditorTest {
         clickNamed("Sounds");
         assertTrue(findSlot("Enchantment complete") >= 0);
         assertTrue(findSlot("Not enough XP") >= 0);
+        assertEquals(ORIGINAL, contents());
     }
 
     private void assertReentrantPublication(boolean disconnect) throws Exception {
