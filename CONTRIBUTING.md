@@ -15,6 +15,8 @@ python scripts\test_verify_artifact.py
 
 Preserve retained artifacts outside `target` before cleaning. Build and server JVMs are separate. Test the packaged JAR on both exact platforms; a mocked test or Paper pass does not prove Spigot behavior or real-client presentation. No new runtime dependencies are required.
 
+GitHub Actions runs wrapper verification and the two artifact-check scripts on Linux and Windows with JDK 21. After inspection, it retains only the exact plain deployment JAR for seven days. Action releases are pinned to upstream commit SHAs; update pins only after checking their upstream release tags. Hosted CI covers unit tests and packaging; native server QA runs separately.
+
 ## Source map
 
 Under `io.github.stealingdapenta.enchantxp`, only `EnchantXpPlugin` lives in the root and wires lifecycle, listeners and commands.
