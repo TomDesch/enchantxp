@@ -50,7 +50,7 @@ The unavailable-upgrade message covers permission and price filtering. The exact
 
 The required integer `config-version: 1` identifies the configuration schema, not the plugin release or save count. Before an incompatible upgrade, preserve your old file, compare the new defaults and follow the release instructions before setting the documented schema. There is no automatic migration or unconditional compatibility guarantee.
 
-Invalid startup configuration disables the plugin; a bad reload retains healthy live settings and leaves your file untouched. Saves reject detected external edits and retain at most two owned exact-byte `config.yml.backup-*` generations. Explicit saving can normalize YAML and remove comments. If feedback says "Saved, but not applied", check the log and reload. Keep your own backups for long-term recovery.
+Unknown root or nested keys are invalid, including capitalization typos. Invalid startup configuration disables the plugin; a bad reload retains healthy live settings and leaves your file untouched. Saves reject detected external edits and retain at most two owned exact-byte `config.yml.backup-*` generations. Explicit saving can normalize YAML and remove comments. If feedback says "Saved, but not applied", check the log and reload. Keep your own backups for long-term recovery.
 
 ## Support
 

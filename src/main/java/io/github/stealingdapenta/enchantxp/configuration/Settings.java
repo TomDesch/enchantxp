@@ -43,6 +43,8 @@ public final class Settings {
         if (!(config.get("config-version") instanceof Integer) || ((Integer) config.get("config-version")) != CONFIG_VERSION) {
             throw new IllegalArgumentException("config-version must be the integer " + CONFIG_VERSION + ". Preserve your file and follow the README schema upgrade policy before retrying.");
         }
+        ConfigValues.keys(config, "config-version", "base-xp", "max-cost", "bookshelf-pricing", "permissions",
+                "sounds", "enchantments", "items", "lore-style", "ui", "messages");
         Prices prices = Prices.read(config);
         EnchantPolicy policy = EnchantPolicy.read(config);
         int rows = NumericRule.ROWS.readInteger(ConfigValues.value(config, ConfigValues.defaults(), "ui.rows"), "ui.rows");
