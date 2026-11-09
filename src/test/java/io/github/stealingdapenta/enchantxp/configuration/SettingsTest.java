@@ -21,6 +21,8 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -130,12 +132,23 @@ class SettingsTest {
         for (Object version : Arrays.asList(null, "1", 1.0, true, 0, 2)) {
             YamlConfiguration document = yaml("base-xp: 25\nmax-cost: 1000000\n");
             document.set("config-version", version);
+            document.set("permission.enabled", true);
             String before = document.saveToString();
             IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> Settings.read(document));
             assertTrue(failure.getMessage().contains("config-version"));
             assertTrue(failure.getMessage().contains("upgrade"));
             assertEquals(before, document.saveToString());
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"permission", "typo", "Permissions"})
+    void unknownRootKeysFailWithTheirExactCaseSensitivePathsWithoutChangingDocument(String key) throws Exception {
+        YamlConfiguration document = yaml("base-xp: 25\nmax-cost: 1000000\n" + key + ":\n  enabled: true\n");
+        String before = document.saveToString();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> Settings.read(document));
+        assertEquals(key + " is unknown", failure.getMessage());
+        assertEquals(before, document.saveToString());
     }
 
     @Test
