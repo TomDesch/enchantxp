@@ -103,7 +103,8 @@ public final class ConfigValues {
         Set<String> names = new HashSet<>(Arrays.asList(allowed));
         for (String key : section.getKeys(false)) {
             if (!names.contains(key)) {
-                throw new IllegalArgumentException(section.getCurrentPath() + "." + key + " is unknown");
+                String path = section.getCurrentPath();
+                throw new IllegalArgumentException((path == null || path.isEmpty() ? key : path + "." + key) + " is unknown");
             }
         }
     }

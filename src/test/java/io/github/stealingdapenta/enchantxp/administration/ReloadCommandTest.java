@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -44,6 +45,7 @@ class ReloadCommandTest {
     private ReloadCommand reload;
     private Command command;
     private ConsoleCommandSender console;
+    private Logger logger;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -51,6 +53,8 @@ class ReloadCommandTest {
         directory = Files.createDirectory(Paths.get("target", "reload-test-" + UUID.randomUUID()));
         file = directory.resolve("config.yml");
         write(ORIGINAL);
+        logger = mock(Logger.class);
+        when(fixture.plugin.getLogger()).thenReturn(logger);
         reload = new ReloadCommand(fixture.plugin, fixture.menus, Settings.read(yaml(ORIGINAL)), file.toFile());
         command = new Command("enchantxp") {
             @Override
@@ -137,6 +141,39 @@ class ReloadCommandTest {
         fixture.tick();
         assertEquals(960, Experience.total(fixture.level, fixture.progress));
         assertEquals(2, fixture.items.get(0).getEnchantmentLevel(ServerFixture.SHARPNESS));
+    }
+
+    @Test
+    void unknownRootKeyKeepsExactFileLiveMenuSettingsAndPendingPurchaseAtOldPrice() throws Exception {
+        fixture.confirmPage();
+        Object previous = fixture.menuIdentity();
+        Inventory previousMenu = fixture.view.getTopInventory();
+        fixture.click(fixture.confirmSlot(), ClickType.LEFT);
+        Runnable pendingConfirm = fixture.tasks.remove();
+        String candidate = ("# Preserve this operator comment.\nconfig-version: 1\nbase-xp: 1\nmax-cost: -1\n" +
+                "permission:\n  enabled: true\nui:\n  rows: 3\nmessages:\n  reload-failure: 'Candidate message'\n")
+                .replace("\n", "\r\n");
+        write(candidate);
+        request(console);
+        complete();
+        assertArrayEquals(candidate.getBytes(StandardCharsets.UTF_8), Files.readAllBytes(file));
+        verify(logger).warning("Cannot reload " + file.toFile().getPath() + ": permission is unknown");
+        verify(console).sendMessage(contains(file.toFile().getPath()));
+        verify(console).sendMessage(contains("Previous settings kept"));
+        verify(console, never()).sendMessage(contains("Candidate message"));
+        verify(console, never()).sendMessage(contains("Configuration reloaded"));
+        assertSame(previous, fixture.menuIdentity());
+        assertSame(previousMenu, fixture.view.getTopInventory());
+        pendingConfirm.run();
+        assertEquals(900, Experience.total(fixture.level, fixture.progress));
+        assertEquals(2, fixture.items.get(0).getEnchantmentLevel(ServerFixture.SHARPNESS));
+        fixture.items.get(0).removeEnchantment(ServerFixture.SHARPNESS);
+        fixture.balance(1000);
+        fixture.confirmPage();
+        assertEquals(54, fixture.view.getTopInventory().getSize());
+        fixture.click(fixture.confirmSlot(), ClickType.LEFT);
+        fixture.tick();
+        assertEquals(900, Experience.total(fixture.level, fixture.progress));
     }
 
     @Test
